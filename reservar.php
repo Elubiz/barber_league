@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 class="form-control" 
                                 id="telefono" 
                                 name="telefono" 
-                                placeholder="315 639 3235"
+                                placeholder="315 639 3235s"
                                 maxlength="12"
                                 required
                                 value="<?php echo isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : ''; ?>"
