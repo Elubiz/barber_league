@@ -1,3 +1,79 @@
+<?php
+// Procesamiento del formulario ANTES del HTML
+$mensaje_exito = '';
+$mensaje_error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    include 'includes/conexion.php';
+    
+    // Obtener datos del formulario
+    $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
+    $telefono = mysqli_real_escape_string($conexion, trim($_POST['telefono']));
+    $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
+    $id_servicio = intval($_POST['id_servicio']);
+    $fecha = mysqli_real_escape_string($conexion, $_POST['fecha']);
+    $hora = mysqli_real_escape_string($conexion, $_POST['hora']);
+    $notas = isset($_POST['notas']) ? mysqli_real_escape_string($conexion, trim($_POST['notas'])) : '';
+    
+    // Validación básica
+    if (empty($nombre) || empty($telefono) || empty($id_servicio) || empty($fecha) || empty($hora)) {
+        $mensaje_error = 'Por favor completa todos los campos obligatorios';
+    } 
+    // Limpiar espacios del teléfono
+    $telefono = str_replace(' ', '', $telefono);
+    
+    // Validar formato de teléfono (10 dígitos)
+    if (!preg_match('/^[0-9]{10}$/', $telefono)) {
+        $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
+    }
+    else {
+        // Verificar disponibilidad
+        $checkQuery = "SELECT id FROM reservas WHERE fecha = '$fecha' AND hora = '$hora' AND estado != 'Cancelada'";
+        $checkResult = mysqli_query($conexion, $checkQuery);
+        
+        if (mysqli_num_rows($checkResult) > 0) {
+            $mensaje_error = 'Este horario ya está reservado. Por favor, selecciona otro.';
+        } else {
+            // Buscar o crear cliente por teléfono
+            $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
+            $clienteResult = mysqli_query($conexion, $clienteQuery);
+            
+            if (mysqli_num_rows($clienteResult) > 0) {
+                // Cliente existe
+                $cliente = mysqli_fetch_assoc($clienteResult);
+                $id_cliente = $cliente['id'];
+                
+                // Actualizar datos del cliente
+                $updateCliente = "UPDATE clientes SET nombre = '$nombre', correo = '$correo' WHERE id = $id_cliente";
+                mysqli_query($conexion, $updateCliente);
+            } else {
+                // Cliente nuevo
+                $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) VALUES ('$nombre', '$telefono', '$correo')";
+                if (mysqli_query($conexion, $insertCliente)) {
+                    $id_cliente = mysqli_insert_id($conexion);
+                } else {
+                    $mensaje_error = 'Error al registrar el cliente: ' . mysqli_error($conexion);
+                    $id_cliente = 0;
+                }
+            }
+            
+            // Si el cliente fue creado/encontrado, crear la reserva
+            if ($id_cliente > 0) {
+                $insertReserva = "INSERT INTO reservas (id_cliente, id_servicio, fecha, hora, notas, estado) 
+                                  VALUES ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente')";
+                
+                if (mysqli_query($conexion, $insertReserva)) {
+                    $mensaje_exito = '¡Reserva realizada exitosamente! Te contactaremos pronto al ' . $telefono;
+                } else {
+                    $mensaje_error = 'Error al crear la reserva: ' . mysqli_error($conexion);
+                }
+            }
+        }
+    }
+    
+    mysqli_close($conexion);
+}
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -14,7 +90,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Flatpickr CSS -->
+    <!-- Flatpickr CSS para selector de fecha -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
     <!-- Custom CSS -->
@@ -26,15 +102,30 @@
     <?php include 'includes/header.php'; ?>
 
     <!-- PÁGINA DE RESERVA -->
-    <section class="form-section section">
+    <section class="form-section section" style="padding-top: 120px;">
         <div class="container">
             <div class="section-title">
                 <h2>Reserva Tu Cita</h2>
                 <p>Completa el formulario y asegura tu lugar</p>
             </div>
             
+            <!-- Mensajes de éxito/error -->
+            <?php if ($mensaje_exito): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle"></i> <?php echo $mensaje_exito; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($mensaje_error): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle"></i> <?php echo $mensaje_error; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+            
             <div class="form-container">
-                <form id="reservaForm" method="POST">
+                <form id="reservaForm" method="POST" action="">
                     <!-- Información Personal -->
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -48,6 +139,7 @@
                                 name="nombre" 
                                 placeholder="Ej: Juan Pérez"
                                 required
+                                value="<?php echo isset($_POST['nombre']) ? htmlspecialchars($_POST['nombre']) : ''; ?>"
                             >
                         </div>
                         
@@ -60,10 +152,12 @@
                                 class="form-control" 
                                 id="telefono" 
                                 name="telefono" 
-                                placeholder="3112345678"
-                                maxlength="10"
+                                placeholder="315 639 3235"
+                                maxlength="12"
                                 required
+                                value="<?php echo isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : ''; ?>"
                             >
+                            <small class="text-muted">Formato: 315 639 3235 (10 dígitos)</small>
                         </div>
                     </div>
                     
@@ -77,6 +171,7 @@
                             id="correo" 
                             name="correo" 
                             placeholder="ejemplo@correo.com"
+                            value="<?php echo isset($_POST['correo']) ? htmlspecialchars($_POST['correo']) : ''; ?>"
                         >
                     </div>
                     
@@ -92,23 +187,16 @@
                             <?php
                             include 'includes/conexion.php';
                             
-                            $query = "SELECT id, nombre_servicio, precio FROM servicios ORDER BY nombre_servicio";
+                            $query = "SELECT id, nombre_servicio, precio FROM servicios WHERE activo = 1 ORDER BY nombre_servicio";
                             $result = mysqli_query($conexion, $query);
                             
                             if ($result && mysqli_num_rows($result) > 0) {
                                 while ($servicio = mysqli_fetch_assoc($result)) {
-                                    $selected = (isset($_GET['servicio']) && $_GET['servicio'] == $servicio['id']) ? 'selected' : '';
+                                    $selected = (isset($_POST['id_servicio']) && $_POST['id_servicio'] == $servicio['id']) ? 'selected' : '';
                                     echo "<option value='{$servicio['id']}' {$selected}>{$servicio['nombre_servicio']} - $" . number_format($servicio['precio'], 0, ',', '.') . "</option>";
                                 }
-                            } else {
-                                // Opciones de ejemplo
-                                echo "<option value='1'>Corte Clásico - $25,000</option>";
-                                echo "<option value='2'>Barba Profesional - $15,000</option>";
-                                echo "<option value='3'>Corte + Barba - $35,000</option>";
-                                echo "<option value='4'>Trenzas - $30,000</option>";
-                                echo "<option value='5'>Dreadlocks - $80,000</option>";
-                                echo "<option value='6'>Masaje Capilar - $20,000</option>";
                             }
+                            mysqli_close($conexion);
                             ?>
                         </select>
                     </div>
@@ -134,7 +222,7 @@
                                 <i class="fas fa-clock"></i> Hora <span style="color: red;">*</span>
                             </label>
                             <select class="form-control" id="hora" name="hora" required>
-                                <option value="">-- Selecciona hora --</option>
+                                <option value="">-- Selecciona fecha primero --</option>
                             </select>
                         </div>
                     </div>
@@ -150,7 +238,7 @@
                             name="notas" 
                             rows="3" 
                             placeholder="¿Alguna solicitud especial?"
-                        ></textarea>
+                        ><?php echo isset($_POST['notas']) ? htmlspecialchars($_POST['notas']) : ''; ?></textarea>
                     </div>
                     
                     <!-- Información de Horarios -->
@@ -181,95 +269,126 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Flatpickr JS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
-    <script src="assets/js/main.js"></script>
+    
+    <!-- Script personalizado para el formulario -->
+    <script>
+        // Inicializar selector de fecha con Flatpickr
+        const fechaInput = document.getElementById('fecha');
+        const horaSelect = document.getElementById('hora');
+        
+        flatpickr(fechaInput, {
+            locale: 'es',
+            minDate: 'today',
+            maxDate: new Date().fp_incr(90), // 90 días adelante
+            dateFormat: 'Y-m-d',
+            disable: [
+                // Opcional: deshabilitar domingos
+                // function(date) {
+                //     return (date.getDay() === 0);
+                // }
+            ],
+            onChange: function(selectedDates, dateStr, instance) {
+                // Cuando se selecciona una fecha, cargar las horas disponibles
+                if (dateStr) {
+                    cargarHorasDisponibles(dateStr);
+                }
+            }
+        });
+        
+        // Función para cargar horas disponibles
+        function cargarHorasDisponibles(fecha) {
+            horaSelect.innerHTML = '<option value="">Cargando...</option>';
+            
+            // Generar horarios de 9:00 AM a 9:00 PM cada 30 minutos
+            const horarios = [];
+            for (let hora = 9; hora <= 20; hora++) {
+                for (let minuto of ['00', '30']) {
+                    if (hora === 20 && minuto === '30') break; // No agregar 8:30 PM
+                    const horaStr = `${hora.toString().padStart(2, '0')}:${minuto}`;
+                    horarios.push(horaStr);
+                }
+            }
+            
+            // Limpiar y llenar el select
+            horaSelect.innerHTML = '<option value="">-- Selecciona una hora --</option>';
+            horarios.forEach(hora => {
+                const option = document.createElement('option');
+                option.value = hora + ':00';
+                option.textContent = convertirA12Horas(hora);
+                horaSelect.appendChild(option);
+            });
+        }
+        
+        // Convertir hora de 24h a 12h (AM/PM)
+        function convertirA12Horas(hora24) {
+            const [hora, minuto] = hora24.split(':');
+            let h = parseInt(hora);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${minuto} ${ampm}`;
+        }
+        
+        // Validar teléfono en tiempo real - FORMATO COLOMBIANO
+        document.getElementById('telefono').addEventListener('input', function(e) {
+            let valor = this.value.replace(/\D/g, ''); // Solo números
+            
+            // Limitar a 10 dígitos
+            if (valor.length > 10) {
+                valor = valor.slice(0, 10);
+            }
+            
+            // Formatear con espacios: 310 609 3237
+            if (valor.length >= 7) {
+                this.value = valor.slice(0, 3) + ' ' + valor.slice(3, 6) + ' ' + valor.slice(6);
+            } else if (valor.length >= 4) {
+                this.value = valor.slice(0, 3) + ' ' + valor.slice(3);
+            } else {
+                this.value = valor;
+            }
+            
+            // Validación visual
+            const soloNumeros = this.value.replace(/\s/g, '');
+            if (soloNumeros.length === 10) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else if (soloNumeros.length > 0) {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-valid', 'is-invalid');
+            }
+        });
+        
+        // Validación antes de enviar
+        document.getElementById('reservaForm').addEventListener('submit', function(e) {
+            const telefono = document.getElementById('telefono').value.replace(/\s/g, '');
+            
+            if (telefono.length !== 10) {
+                e.preventDefault();
+                alert('El teléfono debe tener exactamente 10 dígitos\nEjemplo: 310 609 3237');
+                document.getElementById('telefono').focus();
+                return false;
+            }
+        });
+        
+        // Mostrar alerta de éxito si existe
+        <?php if ($mensaje_exito): ?>
+            setTimeout(() => {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Reserva Exitosa!',
+                    text: '<?php echo $mensaje_exito; ?>',
+                    confirmButtonColor: '#d4af37'
+                }).then(() => {
+                    window.location.href = 'index.php';
+                });
+            }, 500);
+        <?php endif; ?>
+    </script>
     
 </body>
 </html>
-
-<?php
-// ============================================
-// PROCESAMIENTO DEL FORMULARIO (PHP)
-// ============================================
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    
-    include 'includes/conexion.php';
-    
-    // Obtener datos del formulario
-    $nombre = mysqli_real_escape_string($conexion, $_POST['nombre']);
-    $telefono = mysqli_real_escape_string($conexion, $_POST['telefono']);
-    $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, $_POST['correo']) : '';
-    $id_servicio = intval($_POST['id_servicio']);
-    $fecha = mysqli_real_escape_string($conexion, $_POST['fecha']);
-    $hora = mysqli_real_escape_string($conexion, $_POST['hora']);
-    $notas = isset($_POST['notas']) ? mysqli_real_escape_string($conexion, $_POST['notas']) : '';
-    
-    // Validación básica
-    if (empty($nombre) || empty($telefono) || empty($id_servicio) || empty($fecha) || empty($hora)) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Todos los campos obligatorios deben ser completados'
-        ]);
-        exit;
-    }
-    
-    // Verificar disponibilidad
-    $checkQuery = "SELECT id FROM reservas WHERE fecha = '$fecha' AND hora = '$hora'";
-    $checkResult = mysqli_query($conexion, $checkQuery);
-    
-    if (mysqli_num_rows($checkResult) > 0) {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Este horario ya está reservado. Por favor, seleccione otro.'
-        ]);
-        exit;
-    }
-    
-    // Insertar o actualizar cliente
-    $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
-    $clienteResult = mysqli_query($conexion, $clienteQuery);
-    
-    if (mysqli_num_rows($clienteResult) > 0) {
-        // Cliente existe, actualizar datos
-        $cliente = mysqli_fetch_assoc($clienteResult);
-        $id_cliente = $cliente['id'];
-        
-        $updateCliente = "UPDATE clientes SET nombre = '$nombre', correo = '$correo' WHERE id = $id_cliente";
-        mysqli_query($conexion, $updateCliente);
-    } else {
-        // Cliente nuevo, insertar
-        $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) VALUES ('$nombre', '$telefono', '$correo')";
-        if (mysqli_query($conexion, $insertCliente)) {
-            $id_cliente = mysqli_insert_id($conexion);
-        } else {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Error al registrar el cliente'
-            ]);
-            exit;
-        }
-    }
-    
-    // Insertar reserva
-    $insertReserva = "INSERT INTO reservas (id_cliente, id_servicio, fecha, hora, notas, estado) 
-                      VALUES ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente')";
-    
-    if (mysqli_query($conexion, $insertReserva)) {
-        echo json_encode([
-            'success' => true,
-            'message' => 'Reserva realizada exitosamente'
-        ]);
-    } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Error al crear la reserva: ' . mysqli_error($conexion)
-        ]);
-    }
-    
-    mysqli_close($conexion);
-    exit;
-}
-?>
