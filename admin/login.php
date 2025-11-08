@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_logueado'] = true;
             $_SESSION['admin_id'] = $admin['id'];
             $_SESSION['admin_usuario'] = $admin['usuario'];
-            $_SESSION['admin_nombre'] = $admin['nombre_completo'];
+            $_SESSION['admin_nombre'] = $admin['nombre']; // ✅ CORREGIDO: era 'nombre_completo'
             
             header("Location: dashboard.php");
             exit;
@@ -268,4 +268,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
 </body>
-</html>s
+</html>
