@@ -271,7 +271,7 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
                 </a>
             </li>
             <li>
-                <a href="servicios.php">
+                <a href="servicio.php">
                     <i class="fas fa-scissors"></i>
                     <span>Servicios</span>
                 </a>

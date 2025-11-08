@@ -315,7 +315,7 @@ $stats = mysqli_fetch_assoc($statsResult);
                 </a>
             </li>
             <li>
-                <a href="servicios.php" class="active">
+                <a href="servicio.php" class="active">
                     <i class="fas fa-scissors"></i>
                     <span>Servicios</span>
                 </a>

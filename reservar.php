@@ -1,14 +1,13 @@
 <?php
-// Procesamiento del formulario ANTES del HTML
 $mensaje_exito = '';
 $mensaje_error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     include 'includes/conexion.php';
     
-    // Obtener datos del formulario
+    // Obtener datos
     $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
-    $telefono = mysqli_real_escape_string($conexion, trim($_POST['telefono']));
+    $telefono = mysqli_real_escape_string($conexion, str_replace(' ', '', trim($_POST['telefono'])));
     $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
     $id_servicio = intval($_POST['id_servicio']);
     $fecha = mysqli_real_escape_string($conexion, $_POST['fecha']);
@@ -19,36 +18,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($nombre) || empty($telefono) || empty($id_servicio) || empty($fecha) || empty($hora)) {
         $mensaje_error = 'Por favor completa todos los campos obligatorios';
     } 
-    // Limpiar espacios del teléfono
-    $telefono = str_replace(' ', '', $telefono);
-    
-    // Validar formato de teléfono (10 dígitos)
-    if (!preg_match('/^[0-9]{10}$/', $telefono)) {
+    elseif (!preg_match('/^[0-9]{10}$/', $telefono)) {
         $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
     }
     else {
         // Verificar disponibilidad
-        $checkQuery = "SELECT id FROM reservas WHERE fecha = '$fecha' AND hora = '$hora' AND estado != 'Cancelada'";
+        $checkQuery = "SELECT id FROM reservas 
+                      WHERE fecha = '$fecha' 
+                      AND hora = '$hora' 
+                      AND estado != 'Cancelada'";
         $checkResult = mysqli_query($conexion, $checkQuery);
         
         if (mysqli_num_rows($checkResult) > 0) {
             $mensaje_error = 'Este horario ya está reservado. Por favor, selecciona otro.';
         } else {
-            // Buscar o crear cliente por teléfono
+            // Buscar o crear cliente
             $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
             $clienteResult = mysqli_query($conexion, $clienteQuery);
             
             if (mysqli_num_rows($clienteResult) > 0) {
-                // Cliente existe
                 $cliente = mysqli_fetch_assoc($clienteResult);
                 $id_cliente = $cliente['id'];
                 
-                // Actualizar datos del cliente
                 $updateCliente = "UPDATE clientes SET nombre = '$nombre', correo = '$correo' WHERE id = $id_cliente";
                 mysqli_query($conexion, $updateCliente);
             } else {
-                // Cliente nuevo
-                $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) VALUES ('$nombre', '$telefono', '$correo')";
+                $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) 
+                                 VALUES ('$nombre', '$telefono', '$correo')";
                 if (mysqli_query($conexion, $insertCliente)) {
                     $id_cliente = mysqli_insert_id($conexion);
                 } else {
@@ -57,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // Si el cliente fue creado/encontrado, crear la reserva
+            // Crear reserva
             if ($id_cliente > 0) {
                 $insertReserva = "INSERT INTO reservas (id_cliente, id_servicio, fecha, hora, notas, estado) 
                                   VALUES ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente')";

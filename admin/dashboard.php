@@ -357,7 +357,7 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
                 </a>
             </li>
             <li>
-                <a href="servicios.php">
+                <a href="servicio.php">
                     <i class="fas fa-scissors"></i>
                     <span>Servicios</span>
                 </a>

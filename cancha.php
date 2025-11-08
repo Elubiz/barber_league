@@ -1,5 +1,4 @@
 <?php
-// Procesamiento del formulario ANTES del HTML
 $mensaje_exito = '';
 $mensaje_error = '';
 
@@ -8,85 +7,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Obtener datos del formulario
     $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
-    $telefono = mysqli_real_escape_string($conexion, trim($_POST['telefono']));
+    $telefono = mysqli_real_escape_string($conexion, str_replace(' ', '', trim($_POST['telefono'])));
     $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
     $fecha = mysqli_real_escape_string($conexion, $_POST['fecha']);
     $hora_inicio = mysqli_real_escape_string($conexion, $_POST['hora_inicio']);
-    $duracion = intval($_POST['duracion']); // 1 o 2 horas
+    $duracion = intval($_POST['duracion']);
     $num_personas = intval($_POST['num_personas']);
     $notas = isset($_POST['notas']) ? mysqli_real_escape_string($conexion, trim($_POST['notas'])) : '';
     
     // Validación básica
     if (empty($nombre) || empty($telefono) || empty($fecha) || empty($hora_inicio) || $duracion < 1) {
         $mensaje_error = 'Por favor completa todos los campos obligatorios';
+    } elseif (!preg_match('/^[0-9]{10}$/', $telefono)) {
+        $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
     } else {
-        // Limpiar espacios del teléfono
-        $telefono = str_replace(' ', '', $telefono);
+        // Calcular hora_fin
+        $hora_inicio_timestamp = strtotime($fecha . ' ' . $hora_inicio);
+        $hora_fin_timestamp = $hora_inicio_timestamp + ($duracion * 3600);
+        $hora_fin = date('H:i:s', $hora_fin_timestamp);
         
-        // Validar formato de teléfono (10 dígitos)
-        if (!preg_match('/^[0-9]{10}$/', $telefono)) {
-            $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
+        // Verificar disponibilidad
+        $checkQuery = "SELECT id FROM reservas_cancha 
+                      WHERE fecha = '$fecha' 
+                      AND estado != 'Cancelada'
+                      AND (
+                          (hora_inicio < '$hora_fin' AND hora_inicio >= '$hora_inicio')
+                          OR (hora_fin > '$hora_inicio' AND hora_fin <= '$hora_fin')
+                          OR (hora_inicio <= '$hora_inicio' AND hora_fin >= '$hora_fin')
+                      )";
+        
+        $checkResult = mysqli_query($conexion, $checkQuery);
+        
+        if (mysqli_num_rows($checkResult) > 0) {
+            $mensaje_error = 'Este horario ya está reservado. Por favor, selecciona otro.';
         } else {
-            // Calcular hora de fin
-            $hora_fin_time = date('H:i:s', strtotime($hora_inicio) + ($duracion * 3600));
+            // Calcular precio
+            $precio_hora = 50000;
+            $precio_total = $precio_hora * $duracion;
             
-            // Verificar disponibilidad - buscar conflictos
-            $checkQuery = "SELECT id FROM reservas_cancha 
-                          WHERE fecha = '$fecha' 
-                          AND estado != 'Cancelada'
-                          AND (
-                              (hora_inicio < '$hora_fin_time' AND hora_fin > '$hora_inicio')
-                          )";
+            // Descuento por grupo (5+ personas = 10%)
+            if ($num_personas >= 5) {
+                $precio_total = $precio_total * 0.90;
+            }
             
-            $checkResult = mysqli_query($conexion, $checkQuery);
+            // Buscar o crear cliente
+            $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
+            $clienteResult = mysqli_query($conexion, $clienteQuery);
             
-            if (mysqli_num_rows($checkResult) > 0) {
-                $mensaje_error = 'Este horario ya está reservado. Por favor, selecciona otro.';
+            if (mysqli_num_rows($clienteResult) > 0) {
+                $cliente = mysqli_fetch_assoc($clienteResult);
+                $id_cliente = $cliente['id'];
+                
+                $updateCliente = "UPDATE clientes SET nombre = '$nombre', correo = '$correo' WHERE id = $id_cliente";
+                mysqli_query($conexion, $updateCliente);
             } else {
-                // Calcular precio
-                $precio_hora = 50000;
-                $precio_total = $precio_hora * $duracion;
-                
-                // Descuento por grupo (más de 5 personas = 10% descuento)
-                if ($num_personas >= 5) {
-                    $descuento = $precio_total * 0.10;
-                    $precio_total -= $descuento;
-                }
-                
-                // Buscar o crear cliente
-                $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
-                $clienteResult = mysqli_query($conexion, $clienteQuery);
-                
-                if (mysqli_num_rows($clienteResult) > 0) {
-                    $cliente = mysqli_fetch_assoc($clienteResult);
-                    $id_cliente = $cliente['id'];
-                    
-                    // Actualizar datos del cliente
-                    $updateCliente = "UPDATE clientes SET nombre = '$nombre', correo = '$correo' WHERE id = $id_cliente";
-                    mysqli_query($conexion, $updateCliente);
+                $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) 
+                                 VALUES ('$nombre', '$telefono', '$correo')";
+                if (mysqli_query($conexion, $insertCliente)) {
+                    $id_cliente = mysqli_insert_id($conexion);
                 } else {
-                    // Cliente nuevo
-                    $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) VALUES ('$nombre', '$telefono', '$correo')";
-                    if (mysqli_query($conexion, $insertCliente)) {
-                        $id_cliente = mysqli_insert_id($conexion);
-                    } else {
-                        $mensaje_error = 'Error al registrar el cliente: ' . mysqli_error($conexion);
-                        $id_cliente = 0;
-                    }
+                    $mensaje_error = 'Error al registrar el cliente: ' . mysqli_error($conexion);
+                    $id_cliente = 0;
                 }
+            }
+            
+            // Crear reserva
+            if ($id_cliente > 0) {
+                $insertReserva = "INSERT INTO reservas_cancha 
+                                 (id_cliente, fecha, hora_inicio, hora_fin, duracion, precio, num_personas, notas, estado) 
+                                 VALUES 
+                                 ($id_cliente, '$fecha', '$hora_inicio', '$hora_fin', $duracion, $precio_total, $num_personas, '$notas', 'Pendiente')";
                 
-                // Crear reserva de cancha
-                if ($id_cliente > 0) {
-                    $insertReserva = "INSERT INTO reservas_cancha 
-                                     (id_cliente, fecha, hora_inicio, hora_fin, precio, num_personas, notas, estado) 
-                                     VALUES 
-                                     ($id_cliente, '$fecha', '$hora_inicio', '$hora_fin_time', $precio_total, $num_personas, '$notas', 'Pendiente')";
-                    
-                    if (mysqli_query($conexion, $insertReserva)) {
-                        $mensaje_exito = '¡Reserva de cancha realizada exitosamente! Total a pagar: $' . number_format($precio_total, 0, ',', '.') . '. Te contactaremos al ' . $telefono;
-                    } else {
-                        $mensaje_error = 'Error al crear la reserva: ' . mysqli_error($conexion);
-                    }
+                if (mysqli_query($conexion, $insertReserva)) {
+                    $mensaje_exito = '¡Reserva de cancha realizada exitosamente! Total a pagar: $' . number_format($precio_total, 0, ',', '.') . '. Te contactaremos al ' . $telefono;
+                } else {
+                    $mensaje_error = 'Error al crear la reserva: ' . mysqli_error($conexion);
                 }
             }
         }
