@@ -95,6 +95,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
+    
+    <!-- 🎨 ESTILOS MEJORADOS PARA INPUTS MÁS VISIBLES -->
+    <style>
+        /* Inputs con fondo más claro y texto blanco brillante */
+        .form-control {
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            border: 2px solid rgba(212, 175, 55, 0.5) !important;
+            color: #FFFFFF !important;
+            font-weight: 500;
+            font-size: 1rem;
+        }
+        
+        /* Al hacer focus - aún más claro */
+        .form-control:focus {
+            background-color: rgba(255, 255, 255, 0.22) !important;
+            border-color: #d4af37 !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 0 0 0.25rem rgba(212, 175, 55, 0.3) !important;
+        }
+        
+        /* Placeholder más visible */
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.7) !important;
+            font-weight: 400;
+        }
+        
+        /* Para los selects */
+        select.form-control {
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            color: #FFFFFF !important;
+            cursor: pointer;
+        }
+        
+        select.form-control option {
+            background-color: #1a1a1a;
+            color: #FFFFFF;
+            padding: 12px;
+        }
+        
+        /* Para textarea */
+        textarea.form-control {
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            color: #FFFFFF !important;
+        }
+        
+        /* Labels dorados y más visibles */
+        .form-label {
+            color: #d4af37 !important;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Texto de ayuda más visible */
+        .text-muted {
+            color: rgba(255, 255, 255, 0.75) !important;
+            font-size: 0.875rem;
+        }
+        
+        /* Validación visual mejorada */
+        .form-control.is-valid {
+            border-color: #28a745 !important;
+            background-color: rgba(40, 167, 69, 0.1) !important;
+        }
+        
+        .form-control.is-invalid {
+            border-color: #dc3545 !important;
+            background-color: rgba(220, 53, 69, 0.1) !important;
+        }
+        
+        /* Botón de submit */
+        .btn-submit {
+            background: linear-gradient(135deg, #d4af37, #c49a2e);
+            color: #1a1a1a;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            width: 100%;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+        }
+    </style>
 </head>
 <body>
 
@@ -152,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 class="form-control" 
                                 id="telefono" 
                                 name="telefono" 
-                                placeholder="315 639 3235s"
+                                placeholder="315 639 3235"
                                 maxlength="12"
                                 required
                                 value="<?php echo isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : ''; ?>"
