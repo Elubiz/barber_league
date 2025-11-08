@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $usuario = mysqli_real_escape_string($conexion, trim($_POST['usuario']));
     $password = trim($_POST['password']);
     
-    // Buscar el usuario en la base de datos
-    $query = "SELECT id, usuario, password, nombre FROM administradores WHERE usuario = '$usuario' LIMIT 1";
+    // ✅ CORREGIDO: Solo seleccionar campos que existen en la tabla
+    $query = "SELECT id, usuario, password FROM administradores WHERE usuario = '$usuario' LIMIT 1";
     $result = mysqli_query($conexion, $query);
     
     if ($result && mysqli_num_rows($result) === 1) {
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_logueado'] = true;
             $_SESSION['admin_id'] = $admin['id'];
             $_SESSION['admin_usuario'] = $admin['usuario'];
-            $_SESSION['admin_nombre'] = $admin['nombre']; // ✅ CORREGIDO: era 'nombre_completo'
+            $_SESSION['admin_nombre'] = $admin['usuario']; 
             
             header("Location: dashboard.php");
             exit;
