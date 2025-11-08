@@ -99,4 +99,4 @@ switch ($accion) {
 
 mysqli_close($conexion);
 echo json_encode($response);
-?>s
+?>
