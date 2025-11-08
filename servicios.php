@@ -166,7 +166,7 @@
                         [
                             'nombre' => 'Corte Clásico',
                             'desc' => 'Corte tradicional con tijera y máquina, incluye lavado',
-                            'precio' => 25000,
+                            'precio' => 20000,
                             'duracion' => 45,
                             'categoria' => 'corte',
                             'img' => 'https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800'
@@ -190,7 +190,7 @@
                         [
                             'nombre' => 'Corte + Barba Combo',
                             'desc' => 'Paquete completo para lucir impecable',
-                            'precio' => 35000,
+                            'precio' => 25000,
                             'duracion' => 60,
                             'categoria' => 'especial',
                             'img' => 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800'
