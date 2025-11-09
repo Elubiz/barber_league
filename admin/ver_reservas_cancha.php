@@ -30,13 +30,21 @@ if ($filtro_busqueda !== '') {
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-$query = "SELECT rc.*, c.nombre, c.telefono, c.correo
+// 🔥 QUERY CORREGIDO - Ahora trae TODAS las columnas necesarias
+$query = "SELECT rc.id, rc.fecha, rc.hora_inicio, rc.hora_fin, rc.duracion, 
+          rc.estado, rc.precio, rc.num_personas, rc.notas, rc.fecha_creacion,
+          c.nombre, c.telefono, c.correo
           FROM reservas_cancha rc
           INNER JOIN clientes c ON rc.id_cliente = c.id
           $where_sql
           ORDER BY rc.fecha DESC, rc.hora_inicio DESC";
 
 $result = mysqli_query($conexion, $query);
+
+// 🔥 VERIFICAR SI HAY ERROR EN LA CONSULTA
+if (!$result) {
+    die("Error en la consulta: " . mysqli_error($conexion));
+}
 
 // Contar reservas por estado
 $stats_query = "SELECT estado, COUNT(*) as total FROM reservas_cancha GROUP BY estado";
@@ -45,6 +53,9 @@ $stats = [];
 while ($row = mysqli_fetch_assoc($stats_result)) {
     $stats[$row['estado']] = $row['total'];
 }
+
+// Total de todas las reservas
+$total_reservas = array_sum($stats);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -205,6 +216,15 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
             font-size: 0.85rem;
             border-radius: 5px;
         }
+
+        /* 🔥 NUEVO - Alerta de debugging */
+        .debug-alert {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -240,6 +260,17 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
             <small style="color: #666;">Gestiona las reservas de la cancha</small>
         </div>
 
+        <!-- 🔥 DEBUG INFO - Elimina esto después de confirmar que funciona -->
+        <div class="debug-alert">
+            <strong><i class="fas fa-info-circle"></i> Información de Debug:</strong><br>
+            Total de reservas en BD: <strong><?php echo $total_reservas; ?></strong><br>
+            Reservas mostradas: <strong><?php echo mysqli_num_rows($result); ?></strong><br>
+            Filtro estado: <strong><?php echo $filtro_estado; ?></strong><br>
+            <?php if (mysqli_num_rows($result) === 0): ?>
+                <span style="color: red;">⚠️ No se encontraron resultados - Revisa los filtros</span>
+            <?php endif; ?>
+        </div>
+
         <!-- Filtros -->
         <div class="filtros-section">
             <h5 style="margin-bottom: 1rem;"><i class="fas fa-filter"></i> Filtrar Reservas</h5>
@@ -251,7 +282,7 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
                         <div>
                             <span class="estado-badge estado-todos <?php echo $filtro_estado === 'todos' ? 'active' : ''; ?>" 
                                   onclick="filtrarEstado('todos')">
-                                <i class="fas fa-th"></i> Todos (<?php echo array_sum($stats); ?>)
+                                <i class="fas fa-th"></i> Todos (<?php echo $total_reservas; ?>)
                             </span>
                             <span class="estado-badge estado-pendiente <?php echo $filtro_estado === 'Pendiente' ? 'active' : ''; ?>" 
                                   onclick="filtrarEstado('Pendiente')">
@@ -332,6 +363,7 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
                                 $fecha_formateada = date('d/m/Y', strtotime($reserva['fecha']));
                                 $hora_inicio = date('g:i A', strtotime($reserva['hora_inicio']));
                                 $hora_fin = $reserva['hora_fin'] ? date('g:i A', strtotime($reserva['hora_fin'])) : 'N/A';
+                                $duracion_horas = round($reserva['duracion'] / 60, 1);
                                 ?>
                                 <tr>
                                     <td><strong>#<?php echo $reserva['id']; ?></strong></td>
@@ -346,7 +378,7 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
                                     <td><?php echo $fecha_formateada; ?></td>
                                     <td><?php echo $hora_inicio; ?></td>
                                     <td><?php echo $hora_fin; ?></td>
-                                    <td><?php echo $reserva['duracion']; ?>h</td>
+                                    <td><?php echo $duracion_horas; ?>h</td>
                                     <td><?php echo $reserva['num_personas'] ?? 'N/A'; ?></td>
                                     <td><strong>$<?php echo number_format($reserva['precio'], 0, ',', '.'); ?></strong></td>
                                     <td><span class="badge <?php echo $badge_class; ?>"><?php echo $reserva['estado']; ?></span></td>
@@ -378,7 +410,10 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
                                 <?php
                             }
                         } else {
-                            echo '<tr><td colspan="11" class="text-center">No se encontraron reservas</td></tr>';
+                            echo '<tr><td colspan="11" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i><br>
+                                    <p class="text-muted">No se encontraron reservas de cancha</p>
+                                  </td></tr>';
                         }
                         ?>
                     </tbody>
@@ -430,6 +465,14 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
                                 confirmButtonColor: '#d4af37'
                             });
                         }
+                    })
+                    .catch(error => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error de conexión',
+                            text: 'No se pudo procesar la solicitud',
+                            confirmButtonColor: '#d4af37'
+                        });
                     });
                 }
             });
