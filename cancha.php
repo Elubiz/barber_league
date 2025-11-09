@@ -21,25 +21,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!preg_match('/^[0-9]{10}$/', $telefono)) {
         $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
     } else {
-        // Calcular hora_fin
-        $hora_inicio_timestamp = strtotime($fecha . ' ' . $hora_inicio);
-        $hora_fin_timestamp = $hora_inicio_timestamp + ($duracion * 3600);
-        $hora_fin = date('H:i:s', $hora_fin_timestamp);
+        // ✅ CORRECCIÓN: Calcular hora_fin correctamente
+        $hora_inicio_obj = new DateTime($fecha . ' ' . $hora_inicio);
+        $hora_fin_obj = clone $hora_inicio_obj;
+        $hora_fin_obj->modify("+{$duracion} hours");
+        $hora_fin = $hora_fin_obj->format('H:i:s');
         
-        // Verificar disponibilidad
+        // ✅ CORRECCIÓN: Verificar disponibilidad CON LÓGICA CORRECTA
         $checkQuery = "SELECT id FROM reservas_cancha 
                       WHERE fecha = '$fecha' 
                       AND estado != 'Cancelada'
                       AND (
-                          (hora_inicio < '$hora_fin' AND hora_inicio >= '$hora_inicio')
-                          OR (hora_fin > '$hora_inicio' AND hora_fin <= '$hora_fin')
-                          OR (hora_inicio <= '$hora_inicio' AND hora_fin >= '$hora_fin')
+                          -- Nueva reserva comienza durante una existente
+                          (hora_inicio <= '$hora_inicio' AND hora_fin > '$hora_inicio')
+                          OR
+                          -- Nueva reserva termina durante una existente
+                          (hora_inicio < '$hora_fin' AND hora_fin >= '$hora_fin')
+                          OR
+                          -- Nueva reserva envuelve completamente una existente
+                          ('$hora_inicio' <= hora_inicio AND '$hora_fin' >= hora_fin)
                       )";
         
         $checkResult = mysqli_query($conexion, $checkQuery);
         
         if (mysqli_num_rows($checkResult) > 0) {
-            $mensaje_error = 'Este horario ya está reservado. Por favor, selecciona otro.';
+            $mensaje_error = 'Este horario ya está reservado o tiene conflictos. Por favor, selecciona otro.';
         } else {
             // Calcular precio
             $precio_hora = 50000;
@@ -71,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // Crear reserva
+            // ✅ CORRECCIÓN: Crear reserva con todos los campos
             if ($id_cliente > 0) {
                 $insertReserva = "INSERT INTO reservas_cancha 
                                  (id_cliente, fecha, hora_inicio, hora_fin, duracion, precio, num_personas, notas, estado) 
@@ -141,11 +147,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 0.5rem;
         }
         
-        .price-card p {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-        
         .discount-badge {
             background: #28a745;
             color: white;
@@ -176,32 +177,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 1.2rem;
         }
         
-        .time-slot {
-            padding: 1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            margin: 0.5rem;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: center;
-        }
-        
-        .time-slot:hover {
-            border-color: #d4af37;
-            background: rgba(212, 175, 55, 0.1);
-        }
-        
-        .time-slot.selected {
-            border-color: #d4af37;
-            background: #d4af37;
-            color: #1a1a1a;
-        }
-        
         .form-container {
             background: white;
             padding: 2rem;
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        /* ✅ Inputs más visibles */
+        .form-control {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border: 2px solid #e0e0e0 !important;
+            color: #1a1a1a !important;
+            font-weight: 500;
+        }
+        
+        .form-control:focus {
+            border-color: #d4af37 !important;
+            box-shadow: 0 0 0 0.25rem rgba(212, 175, 55, 0.25) !important;
+        }
+        
+        .form-label {
+            color: #1a1a1a;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -217,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <i class="fas fa-futbol fa-4x mb-3" style="color: #d4af37;"></i>
                 <h1>Cancha Sintética <span style="color: #d4af37;">Premium</span></h1>
                 <p style="font-size: 1.3rem; max-width: 700px; margin: 1.5rem auto;">
-                    Césped sintético de última generación con iluminación LED para disfrutar del mejor fútbol en Ibagué
+                    Césped sintético de última generación con iluminación LED
                 </p>
             </div>
         </div>
@@ -235,27 +233,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <ul class="feature-list">
                         <li>
                             <i class="fas fa-check-circle"></i>
-                            <strong>Césped Sintético Premium</strong> - Última generación con sistema de drenaje
+                            <strong>Césped Sintético Premium</strong> - Última generación
                         </li>
                         <li>
                             <i class="fas fa-lightbulb"></i>
-                            <strong>Iluminación LED</strong> - Perfecta visibilidad para partidos nocturnos
+                            <strong>Iluminación LED</strong> - Partidos nocturnos
                         </li>
                         <li>
                             <i class="fas fa-shield-alt"></i>
-                            <strong>Redes Profesionales</strong> - Resistentes y de alta calidad
+                            <strong>Redes Profesionales</strong> - Alta calidad
                         </li>
                         <li>
                             <i class="fas fa-door-open"></i>
-                            <strong>Vestuarios Equipados</strong> - Limpios y cómodos con duchas
+                            <strong>Vestuarios Equipados</strong> - Con duchas
                         </li>
                         <li>
                             <i class="fas fa-parking"></i>
-                            <strong>Parqueadero Gratis</strong> - Estacionamiento seguro incluido
-                        </li>
-                        <li>
-                            <i class="fas fa-water"></i>
-                            <strong>Zona de Hidratación</strong> - Punto de agua y bebidas disponibles
+                            <strong>Parqueadero Gratis</strong> - Seguro
                         </li>
                     </ul>
                 </div>
@@ -268,17 +262,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <hr style="border-color: rgba(26, 26, 26, 0.3); margin: 1.5rem 0;">
                         <p><strong>Tarifa 2 Horas:</strong> $95,000</p>
                         <span class="discount-badge">
-                            <i class="fas fa-users"></i> desceunto de 20% para grupos de 5 o más personas que reserven cancha y barberia
+                            <i class="fas fa-users"></i> 10% descuento grupos 5+
                         </span>
-                    </div>
-                    
-                    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; margin-top: 1rem;">
-                        <h5 style="margin-bottom: 1rem; color: #1a1a1a;">
-                            <i class="fas fa-clock"></i> Horarios Disponibles
-                        </h5>
-                        <p style="margin: 0; color: #666;">
-                            <strong>Lunes - Domingo:</strong> 7:00 AM - 11:00 PM
-                        </p>
                     </div>
                 </div>
             </div>
@@ -289,15 +274,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="section" style="background: #f5f6fa; padding: 3rem 0;">
         <div class="container">
             <div class="text-center mb-4">
-                <h2 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem; background: #6a7fd5ff;">
+                <h2 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">
                     <i class="fas fa-calendar-check"></i> Reserva tu Cancha
                 </h2>
-                <p style="color: #666; font-size: 1.1rem;">
-                    Completa el formulario y asegura tu horario
-                </p>
             </div>
             
-            <!-- Mensajes de éxito/error -->
+            <!-- Mensajes -->
             <?php if ($mensaje_exito): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i> <?php echo $mensaje_exito; ?>
@@ -317,84 +299,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-container">
                         <form id="canchaForm" method="POST" action="">
                             <!-- Información Personal -->
-                            <h4 style="margin-bottom: 1.5rem; color: #1a1a1a;">
+                            <h4 style="margin-bottom: 1.5rem;">
                                 <i class="fas fa-user"></i> Información de Contacto
                             </h4>
                             
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="nombre" class="form-label">
-                                        <i class="fas fa-user"></i> Nombre Completo <span style="color: red;">*</span>
+                                        Nombre Completo <span style="color: red;">*</span>
                                     </label>
-                                    <input 
-                                        type="text" 
-                                        class="form-control" 
-                                        id="nombre" 
-                                        name="nombre" 
-                                        placeholder="Ej: Juan Pérez"
-                                        required
-                                        value="<?php echo isset($_POST['nombre']) ? htmlspecialchars($_POST['nombre']) : ''; ?>"
-                                    >
+                                    <input type="text" class="form-control" id="nombre" name="nombre" 
+                                           placeholder="Juan Pérez" required>
                                 </div>
                                 
                                 <div class="col-md-6 mb-3">
                                     <label for="telefono" class="form-label">
-                                        <i class="fas fa-phone"></i> Teléfono <span style="color: red;">*</span>
+                                        Teléfono <span style="color: red;">*</span>
                                     </label>
-                                    <input 
-                                        type="tel" 
-                                        class="form-control" 
-                                        id="telefono" 
-                                        name="telefono" 
-                                        placeholder="315 639 3235"
-                                        maxlength="12"
-                                        required
-                                        value="<?php echo isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : ''; ?>"
-                                    >
-                                    <small class="text-muted">Formato: 315 639 3235 (10 dígitos)</small>
+                                    <input type="tel" class="form-control" id="telefono" name="telefono" 
+                                           placeholder="310 609 3237" maxlength="12" required>
                                 </div>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="correo" class="form-label">
-                                    <i class="fas fa-envelope"></i> Correo Electrónico (Opcional)
-                                </label>
-                                <input 
-                                    type="email" 
-                                    class="form-control" 
-                                    id="correo" 
-                                    name="correo" 
-                                    placeholder="ejemplo@correo.com"
-                                    value="<?php echo isset($_POST['correo']) ? htmlspecialchars($_POST['correo']) : ''; ?>"
-                                >
+                                <label for="correo" class="form-label">Correo (Opcional)</label>
+                                <input type="email" class="form-control" id="correo" name="correo" 
+                                       placeholder="ejemplo@correo.com">
                             </div>
                             
                             <hr style="margin: 2rem 0;">
                             
-                            <!-- Detalles de la Reserva -->
-                            <h4 style="margin-bottom: 1.5rem; color: #1a1a1a;">
+                            <!-- Detalles de Reserva -->
+                            <h4 style="margin-bottom: 1.5rem;">
                                 <i class="fas fa-futbol"></i> Detalles de la Reserva
                             </h4>
                             
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="fecha" class="form-label">
-                                        <i class="fas fa-calendar"></i> Fecha <span style="color: red;">*</span>
+                                        Fecha <span style="color: red;">*</span>
                                     </label>
-                                    <input 
-                                        type="text" 
-                                        class="form-control" 
-                                        id="fecha" 
-                                        name="fecha" 
-                                        placeholder="Selecciona una fecha"
-                                        readonly
-                                        required
-                                    >
+                                    <input type="text" class="form-control" id="fecha" name="fecha" 
+                                           placeholder="Selecciona fecha" readonly required>
                                 </div>
                                 
                                 <div class="col-md-6 mb-3">
                                     <label for="hora_inicio" class="form-label">
-                                        <i class="fas fa-clock"></i> Hora de Inicio <span style="color: red;">*</span>
+                                        Hora de Inicio <span style="color: red;">*</span>
                                     </label>
                                     <select class="form-control" id="hora_inicio" name="hora_inicio" required>
                                         <option value="">-- Selecciona fecha primero --</option>
@@ -405,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="duracion" class="form-label">
-                                        <i class="fas fa-hourglass-half"></i> Duración <span style="color: red;">*</span>
+                                        Duración <span style="color: red;">*</span>
                                     </label>
                                     <select class="form-control" id="duracion" name="duracion" required>
                                         <option value="1">1 Hora - $50,000</option>
@@ -415,62 +366,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 
                                 <div class="col-md-6 mb-3">
                                     <label for="num_personas" class="form-label">
-                                        <i class="fas fa-users"></i> Número de Personas
+                                        Número de Personas
                                     </label>
-                                    <input 
-                                        type="number" 
-                                        class="form-control" 
-                                        id="num_personas" 
-                                        name="num_personas" 
-                                        min="1" 
-                                        max="20" 
-                                        value="10"
-                                        placeholder="¿Cuántos van a jugar?"
-                                    >
-                                    <small class="text-muted">
-                                        <i class="fas fa-tag"></i> 5+ personas = 10% descuento
-                                    </small>
+                                    <input type="number" class="form-control" id="num_personas" 
+                                           name="num_personas" min="1" max="20" value="10">
+                                    <small class="text-muted">5+ personas = 10% descuento</small>
                                 </div>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="notas" class="form-label">
-                                    <i class="fas fa-comment"></i> Notas o Comentarios (Opcional)
-                                </label>
-                                <textarea 
-                                    class="form-control" 
-                                    id="notas" 
-                                    name="notas" 
-                                    rows="3" 
-                                    placeholder="Ej: Necesitamos balón, chalecos, etc."
-                                ><?php echo isset($_POST['notas']) ? htmlspecialchars($_POST['notas']) : ''; ?></textarea>
+                                <label for="notas" class="form-label">Notas (Opcional)</label>
+                                <textarea class="form-control" id="notas" name="notas" rows="3" 
+                                          placeholder="Comentarios adicionales"></textarea>
                             </div>
                             
-                            <!-- Resumen de Precio -->
-                            <div id="precioResumen" style="background: #fff3cd; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; display: none;">
-                                <h5 style="margin-bottom: 1rem; color: #1a1a1a;">
-                                    <i class="fas fa-calculator"></i> Resumen de Precio
-                                </h5>
-                                <div id="precioDetalle"></div>
-                            </div>
-                            
-                            <!-- Información Importante -->
-                            <div style="background: #e8f5e9; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem;">
-                                <h5 style="margin-bottom: 1rem; color: #1a1a1a;">
-                                    <i class="fas fa-info-circle"></i> Información Importante
-                                </h5>
-                                <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
-                                    <li>Llegar 10 minutos antes del horario reservado</li>
-                                    <li>Firmar un formulario de responsabilidad menores de 18</li>
-                                    <li>El pago se realiza en el lugar antes de iniciar</li>
-                                    <li>Cancelaciones con 24h de anticipación sin cargo</li>
-                                    <li>Prohibido el ingreso de bebidas alcohólicas</li>
-                                </ul>
-                            </div>
-                            
-                            <!-- Botón de Envío -->
-                            <button type="submit" class="btn btn-primary w-100" style="padding: 1rem; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #d4af37, #c49a2e); border: none; border-radius: 10px;">
-                                <i class="fas fa-check-circle"></i> Confirmar Reserva de Cancha
+                            <button type="submit" class="btn btn-primary w-100" 
+                                    style="padding: 1rem; background: linear-gradient(135deg, #d4af37, #c49a2e); 
+                                           border: none; font-weight: 600;">
+                                <i class="fas fa-check-circle"></i> Confirmar Reserva
                             </button>
                         </form>
                     </div>
@@ -489,86 +402,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     
     <script>
-        // Inicializar selector de fecha
-        const fechaInput = document.getElementById('fecha');
-        const horaSelect = document.getElementById('hora_inicio');
-        const duracionSelect = document.getElementById('duracion');
-        const numPersonasInput = document.getElementById('num_personas');
-        
-        flatpickr(fechaInput, {
+        // Selector de fecha
+        flatpickr(document.getElementById('fecha'), {
             locale: 'es',
             minDate: 'today',
             maxDate: new Date().fp_incr(60),
             dateFormat: 'Y-m-d',
             onChange: function(selectedDates, dateStr) {
-                if (dateStr) {
-                    cargarHorasDisponibles(dateStr);
-                }
+                if (dateStr) cargarHoras();
             }
         });
         
-        // Generar horarios de 7 AM a 11 PM cada hora
-        function cargarHorasDisponibles(fecha) {
-            horaSelect.innerHTML = '<option value="">Cargando...</option>';
+        // Generar horarios
+        function cargarHoras() {
+            const select = document.getElementById('hora_inicio');
+            select.innerHTML = '<option value="">-- Selecciona hora --</option>';
             
-            const horarios = [];
-            for (let hora = 7; hora <= 22; hora++) {
-                const horaStr = hora.toString().padStart(2, '0') + ':00:00';
-                horarios.push(horaStr);
+            for (let h = 7; h <= 22; h++) {
+                const hora = `${h.toString().padStart(2, '0')}:00:00`;
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                const h12 = h % 12 || 12;
+                select.innerHTML += `<option value="${hora}">${h12}:00 ${ampm}</option>`;
             }
-            
-            horaSelect.innerHTML = '<option value="">-- Selecciona hora de inicio --</option>';
-            horarios.forEach(hora => {
-                const option = document.createElement('option');
-                option.value = hora;
-                option.textContent = convertirA12Horas(hora);
-                horaSelect.appendChild(option);
-            });
         }
-        
-        // Convertir hora de 24h a 12h (AM/PM)
-        function convertirA12Horas(hora24) {
-            const [hora] = hora24.split(':');
-            let h = parseInt(hora);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            h = h % 12 || 12;
-            return `${h}:00 ${ampm}`;
-        }
-        
-        // Calcular y mostrar precio
-        function actualizarPrecio() {
-            const duracion = parseInt(duracionSelect.value) || 1;
-            const numPersonas = parseInt(numPersonasInput.value) || 1;
-            
-            let precioBase = duracion === 1 ? 50000 : 95000;
-            let descuento = 0;
-            
-            if (numPersonas >= 5) {
-                descuento = precioBase * 0.10;
-            }
-            
-            const precioFinal = precioBase - descuento;
-            
-            document.getElementById('precioResumen').style.display = 'block';
-            document.getElementById('precioDetalle').innerHTML = `
-                <p style="margin: 0.5rem 0;">
-                    <strong>Duración:</strong> ${duracion} hora(s) - $${precioBase.toLocaleString('es-CO')}
-                </p>
-                ${descuento > 0 ? `
-                    <p style="margin: 0.5rem 0; color: #28a745;">
-                        <strong>Descuento Grupal (${numPersonas} personas):</strong> -$${descuento.toLocaleString('es-CO')}
-                    </p>
-                ` : ''}
-                <hr style="margin: 1rem 0;">
-                <p style="margin: 0; font-size: 1.3rem; font-weight: 700; color: #d4af37;">
-                    <strong>Total a Pagar:</strong> $${precioFinal.toLocaleString('es-CO')}
-                </p>
-            `;
-        }
-        
-        // Event listeners para actualizar precio
-        duracionSelect.addEventListener('change', actualizarPrecio);
-        numPersonasInput.addEventListener('input', actualizarPrecio);
         
         // Validar teléfono
         document.getElementById('telefono').addEventListener('input', function(e) {
@@ -584,30 +440,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
         
-        // Validación antes de enviar
+        // Validar antes de enviar
         document.getElementById('canchaForm').addEventListener('submit', function(e) {
             const telefono = document.getElementById('telefono').value.replace(/\s/g, '');
-            
             if (telefono.length !== 10) {
                 e.preventDefault();
-                alert('El teléfono debe tener exactamente 10 dígitos\nEjemplo: 315 639 3235');
+                alert('El teléfono debe tener 10 dígitos');
                 return false;
             }
         });
         
-        // Mostrar alerta de éxito
         <?php if ($mensaje_exito): ?>
-            setTimeout(() => {
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Reserva Exitosa!',
-                    html: '<?php echo $mensaje_exito; ?>',
-                    confirmButtonColor: '#d4af37'
-                }).then(() => {
-                    window.location.href = 'index.php';
-                });
-            }, 500);
+        Swal.fire({
+            icon: 'success',
+            title: '¡Reserva Exitosa!',
+            text: '<?php echo $mensaje_exito; ?>',
+            confirmButtonColor: '#d4af37'
+        });
         <?php endif; ?>
     </script>
-    
-</body
+</body>
+</html>

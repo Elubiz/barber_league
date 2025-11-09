@@ -12,40 +12,91 @@ include '../includes/conexion.php';
 // Obtener estadísticas
 $stats = [];
 
-// Total de reservas hoy
+// Total de reservas hoy (BARBERÍA + CANCHA)
 $hoy = date('Y-m-d');
-$query_hoy = "SELECT COUNT(*) as total FROM reservas WHERE fecha = '$hoy' AND estado != 'Cancelada'";
-$result_hoy = mysqli_query($conexion, $query_hoy);
-$stats['hoy'] = mysqli_fetch_assoc($result_hoy)['total'];
+$query_hoy_barberia = "SELECT COUNT(*) as total FROM reservas WHERE fecha = '$hoy' AND estado != 'Cancelada'";
+$result_hoy_barberia = mysqli_query($conexion, $query_hoy_barberia);
+$barberia_hoy = mysqli_fetch_assoc($result_hoy_barberia)['total'];
 
-// Reservas pendientes
-$query_pendientes = "SELECT COUNT(*) as total FROM reservas WHERE estado = 'Pendiente'";
-$result_pendientes = mysqli_query($conexion, $query_pendientes);
-$stats['pendientes'] = mysqli_fetch_assoc($result_pendientes)['total'];
+$query_hoy_cancha = "SELECT COUNT(*) as total FROM reservas_cancha WHERE fecha = '$hoy' AND estado != 'Cancelada'";
+$result_hoy_cancha = mysqli_query($conexion, $query_hoy_cancha);
+$cancha_hoy = mysqli_fetch_assoc($result_hoy_cancha)['total'];
+
+$stats['hoy'] = $barberia_hoy + $cancha_hoy;
+
+// Reservas pendientes (BARBERÍA + CANCHA)
+$query_pendientes_barberia = "SELECT COUNT(*) as total FROM reservas WHERE estado = 'Pendiente'";
+$result_pendientes_barberia = mysqli_query($conexion, $query_pendientes_barberia);
+$pendientes_barberia = mysqli_fetch_assoc($result_pendientes_barberia)['total'];
+
+$query_pendientes_cancha = "SELECT COUNT(*) as total FROM reservas_cancha WHERE estado = 'Pendiente'";
+$result_pendientes_cancha = mysqli_query($conexion, $query_pendientes_cancha);
+$pendientes_cancha = mysqli_fetch_assoc($result_pendientes_cancha)['total'];
+
+$stats['pendientes'] = $pendientes_barberia + $pendientes_cancha;
 
 // Total de clientes
 $query_clientes = "SELECT COUNT(*) as total FROM clientes";
 $result_clientes = mysqli_query($conexion, $query_clientes);
 $stats['clientes'] = mysqli_fetch_assoc($result_clientes)['total'];
 
-// Ingresos del mes
+// Ingresos del mes (BARBERÍA + CANCHA)
 $mes_actual = date('Y-m');
-$query_ingresos = "SELECT SUM(s.precio) as total 
+$query_ingresos_barberia = "SELECT SUM(s.precio) as total 
                    FROM reservas r 
                    INNER JOIN servicios s ON r.id_servicio = s.id 
                    WHERE DATE_FORMAT(r.fecha, '%Y-%m') = '$mes_actual' 
                    AND r.estado = 'Completada'";
-$result_ingresos = mysqli_query($conexion, $query_ingresos);
-$stats['ingresos'] = mysqli_fetch_assoc($result_ingresos)['total'] ?? 0;
+$result_ingresos_barberia = mysqli_query($conexion, $query_ingresos_barberia);
+$ingresos_barberia = mysqli_fetch_assoc($result_ingresos_barberia)['total'] ?? 0;
 
-// Obtener reservas recientes (últimas 10)
-$query_reservas = "SELECT r.*, c.nombre, c.telefono, s.nombre_servicio, s.precio
-                   FROM reservas r
-                   INNER JOIN clientes c ON r.id_cliente = c.id
-                   INNER JOIN servicios s ON r.id_servicio = s.id
-                   ORDER BY r.fecha DESC, r.hora DESC
-                   LIMIT 20";
-$result_reservas = mysqli_query($conexion, $query_reservas);
+$query_ingresos_cancha = "SELECT SUM(precio) as total 
+                          FROM reservas_cancha 
+                          WHERE DATE_FORMAT(fecha, '%Y-%m') = '$mes_actual' 
+                          AND estado = 'Completada'";
+$result_ingresos_cancha = mysqli_query($conexion, $query_ingresos_cancha);
+$ingresos_cancha = mysqli_fetch_assoc($result_ingresos_cancha)['total'] ?? 0;
+
+$stats['ingresos'] = $ingresos_barberia + $ingresos_cancha;
+
+// 🔥 OBTENER RESERVAS COMBINADAS (BARBERÍA + CANCHA) - ÚLTIMAS 20
+$query_reservas_combinadas = "
+    (SELECT 
+        r.id,
+        'Barbería' as tipo,
+        c.nombre,
+        c.telefono,
+        s.nombre_servicio as servicio,
+        s.precio,
+        r.fecha,
+        r.hora,
+        r.estado,
+        r.fecha_creacion
+    FROM reservas r
+    INNER JOIN clientes c ON r.id_cliente = c.id
+    INNER JOIN servicios s ON r.id_servicio = s.id)
+    
+    UNION ALL
+    
+    (SELECT 
+        rc.id,
+        'Cancha' as tipo,
+        c.nombre,
+        c.telefono,
+        CONCAT('Cancha Sintética (', rc.duracion, 'h)') as servicio,
+        rc.precio,
+        rc.fecha,
+        rc.hora_inicio as hora,
+        rc.estado,
+        rc.fecha_creacion
+    FROM reservas_cancha rc
+    INNER JOIN clientes c ON rc.id_cliente = c.id)
+    
+    ORDER BY fecha DESC, hora DESC
+    LIMIT 20
+";
+
+$result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -297,6 +348,25 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
             color: #f44336;
         }
         
+        /* 🔥 Badge para tipo de reserva */
+        .badge-tipo-barberia {
+            background: #e3f2fd;
+            color: #2196f3;
+            padding: 0.3rem 0.7rem;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-tipo-cancha {
+            background: #e8f5e9;
+            color: #4caf50;
+            padding: 0.3rem 0.7rem;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
         .btn-action {
             padding: 0.4rem 0.8rem;
             font-size: 0.85rem;
@@ -341,7 +411,13 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
             <li>
                 <a href="ver_reservas.php">
                     <i class="fas fa-calendar-check"></i>
-                    <span>Ver Reservas</span>
+                    <span>Reservas Barbería</span>
+                </a>
+            </li>
+            <li>
+                <a href="ver_reservas_cancha.php">
+                    <i class="fas fa-futbol"></i>
+                    <span>Reservas Cancha</span>
                 </a>
             </li>
             <li>
@@ -383,16 +459,16 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
         <div class="top-bar">
             <div>
                 <h1>Dashboard</h1>
-                <small style="color: #666;">Bienvenido de nuevo, <?php echo $_SESSION['admin_nombre']; ?></small>
+                <small style="color: #666;">Bienvenido de nuevo, <?php echo $_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario']; ?></small>
             </div>
             
             <div class="user-info">
                 <div>
-                    <strong style="display: block;"><?php echo $_SESSION['admin_nombre']; ?></strong>
+                    <strong style="display: block;"><?php echo $_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario']; ?></strong>
                     <small style="color: #666;">Administrador</small>
                 </div>
                 <div class="user-avatar">
-                    <?php echo strtoupper(substr($_SESSION['admin_nombre'], 0, 1)); ?>
+                    <?php echo strtoupper(substr($_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario'], 0, 1)); ?>
                 </div>
             </div>
         </div>
@@ -448,11 +524,18 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
             </div>
         </div>
 
-        <!-- Reservas Recientes -->
+        <!-- Reservas Recientes COMBINADAS -->
         <div class="reservas-section">
             <div class="section-header">
-                <h2><i class="fas fa-calendar-check"></i> Reservas Recientes</h2>
-                <a href="ver_reservas.php" class="btn btn-outline-dark">Ver Todas</a>
+                <h2><i class="fas fa-calendar-check"></i> Reservas Recientes (Barbería + Cancha)</h2>
+                <div>
+                    <a href="ver_reservas.php" class="btn btn-outline-primary btn-sm me-2">
+                        <i class="fas fa-cut"></i> Ver Barbería
+                    </a>
+                    <a href="ver_reservas_cancha.php" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-futbol"></i> Ver Cancha
+                    </a>
+                </div>
             </div>
             
             <div class="table-responsive">
@@ -460,11 +543,13 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Tipo</th>
                             <th>Cliente</th>
                             <th>Teléfono</th>
                             <th>Servicio</th>
                             <th>Fecha</th>
                             <th>Hora</th>
+                            <th>Precio</th>
                             <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
@@ -473,37 +558,54 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
                         <?php
                         if ($result_reservas && mysqli_num_rows($result_reservas) > 0) {
                             while ($reserva = mysqli_fetch_assoc($result_reservas)) {
-                                // Clase del badge según el estado
                                 $badge_class = 'badge-' . strtolower($reserva['estado']);
-                                
-                                // Formatear fecha
                                 $fecha_formateada = date('d/m/Y', strtotime($reserva['fecha']));
                                 $hora_formateada = date('g:i A', strtotime($reserva['hora']));
+                                
+                                // Badge de tipo
+                                $tipo_badge = $reserva['tipo'] === 'Barbería' 
+                                    ? '<span class="badge-tipo-barberia"><i class="fas fa-cut"></i> Barbería</span>'
+                                    : '<span class="badge-tipo-cancha"><i class="fas fa-futbol"></i> Cancha</span>';
                                 ?>
                                 <tr>
                                     <td><strong>#<?php echo $reserva['id']; ?></strong></td>
+                                    <td><?php echo $tipo_badge; ?></td>
                                     <td><?php echo htmlspecialchars($reserva['nombre']); ?></td>
-                                    <td><?php echo htmlspecialchars($reserva['telefono']); ?></td>
-                                    <td><?php echo htmlspecialchars($reserva['nombre_servicio']); ?></td>
+                                    <td>
+                                        <a href="https://wa.me/57<?php echo preg_replace('/\D/', '', $reserva['telefono']); ?>" 
+                                           target="_blank"
+                                           style="color: #25d366; text-decoration: none;">
+                                            <i class="fab fa-whatsapp"></i>
+                                            <?php echo htmlspecialchars($reserva['telefono']); ?>
+                                        </a>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($reserva['servicio']); ?></td>
                                     <td><?php echo $fecha_formateada; ?></td>
                                     <td><?php echo $hora_formateada; ?></td>
+                                    <td><strong>$<?php echo number_format($reserva['precio'], 0, ',', '.'); ?></strong></td>
                                     <td><span class="badge <?php echo $badge_class; ?>"><?php echo $reserva['estado']; ?></span></td>
                                     <td>
                                         <div class="btn-group" role="group">
                                             <?php if ($reserva['estado'] === 'Pendiente'): ?>
-                                                <button class="btn btn-success btn-action btn-sm" onclick="cambiarEstado(<?php echo $reserva['id']; ?>, 'Confirmada')">
+                                                <button class="btn btn-success btn-action btn-sm" 
+                                                        onclick="cambiarEstado('<?php echo $reserva['tipo']; ?>', <?php echo $reserva['id']; ?>, 'Confirmada')"
+                                                        title="Confirmar">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                             <?php endif; ?>
                                             
                                             <?php if ($reserva['estado'] === 'Confirmada'): ?>
-                                                <button class="btn btn-primary btn-action btn-sm" onclick="cambiarEstado(<?php echo $reserva['id']; ?>, 'Completada')">
+                                                <button class="btn btn-primary btn-action btn-sm" 
+                                                        onclick="cambiarEstado('<?php echo $reserva['tipo']; ?>', <?php echo $reserva['id']; ?>, 'Completada')"
+                                                        title="Completar">
                                                     <i class="fas fa-check-double"></i>
                                                 </button>
                                             <?php endif; ?>
                                             
                                             <?php if ($reserva['estado'] !== 'Cancelada' && $reserva['estado'] !== 'Completada'): ?>
-                                                <button class="btn btn-danger btn-action btn-sm" onclick="cambiarEstado(<?php echo $reserva['id']; ?>, 'Cancelada')">
+                                                <button class="btn btn-danger btn-action btn-sm" 
+                                                        onclick="cambiarEstado('<?php echo $reserva['tipo']; ?>', <?php echo $reserva['id']; ?>, 'Cancelada')"
+                                                        title="Cancelar">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             <?php endif; ?>
@@ -513,7 +615,7 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
                                 <?php
                             }
                         } else {
-                            echo '<tr><td colspan="8" class="text-center">No hay reservas registradas</td></tr>';
+                            echo '<tr><td colspan="10" class="text-center">No hay reservas registradas</td></tr>';
                         }
                         ?>
                     </tbody>
@@ -528,7 +630,7 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
     
     <script>
         // Función para cambiar el estado de una reserva
-        function cambiarEstado(idReserva, nuevoEstado) {
+        function cambiarEstado(tipo, idReserva, nuevoEstado) {
             Swal.fire({
                 title: '¿Estás seguro?',
                 text: `Cambiar estado a: ${nuevoEstado}`,
@@ -540,8 +642,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Enviar petición para cambiar estado
-                    fetch('procesar_reserva.php', {
+                    // Determinar qué archivo usar según el tipo
+                    const archivo = tipo === 'Barbería' ? 'procesar_reserva.php' : 'procesar_reserva_cancha.php';
+                    
+                    fetch(archivo, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
@@ -554,7 +658,7 @@ $result_reservas = mysqli_query($conexion, $query_reservas);
                             Swal.fire({
                                 icon: 'success',
                                 title: '¡Actualizado!',
-                                text: 'El estado se cambió correctamente',
+                                text: data.message,
                                 confirmButtonColor: '#d4af37'
                             }).then(() => {
                                 location.reload();
