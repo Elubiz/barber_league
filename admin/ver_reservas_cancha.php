@@ -30,7 +30,7 @@ if ($filtro_busqueda !== '') {
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// 🔥 QUERY CORREGIDO - Ahora trae TODAS las columnas necesarias
+// ✅ QUERY CORREGIDO - Trae TODAS las columnas necesarias
 $query = "SELECT rc.id, rc.fecha, rc.hora_inicio, rc.hora_fin, rc.duracion, 
           rc.estado, rc.precio, rc.num_personas, rc.notas, rc.fecha_creacion,
           c.nombre, c.telefono, c.correo
@@ -41,7 +41,6 @@ $query = "SELECT rc.id, rc.fecha, rc.hora_inicio, rc.hora_fin, rc.duracion,
 
 $result = mysqli_query($conexion, $query);
 
-// 🔥 VERIFICAR SI HAY ERROR EN LA CONSULTA
 if (!$result) {
     die("Error en la consulta: " . mysqli_error($conexion));
 }
@@ -54,7 +53,6 @@ while ($row = mysqli_fetch_assoc($stats_result)) {
     $stats[$row['estado']] = $row['total'];
 }
 
-// Total de todas las reservas
 $total_reservas = array_sum($stats);
 ?>
 <!DOCTYPE html>
@@ -216,15 +214,6 @@ $total_reservas = array_sum($stats);
             font-size: 0.85rem;
             border-radius: 5px;
         }
-
-        /* 🔥 NUEVO - Alerta de debugging */
-        .debug-alert {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-        }
     </style>
 </head>
 <body>
@@ -258,17 +247,6 @@ $total_reservas = array_sum($stats);
         <div class="top-bar">
             <h1><i class="fas fa-futbol"></i> Reservas de Cancha Sintética</h1>
             <small style="color: #666;">Gestiona las reservas de la cancha</small>
-        </div>
-
-        <!-- 🔥 DEBUG INFO - Elimina esto después de confirmar que funciona -->
-        <div class="debug-alert">
-            <strong><i class="fas fa-info-circle"></i> Información de Debug:</strong><br>
-            Total de reservas en BD: <strong><?php echo $total_reservas; ?></strong><br>
-            Reservas mostradas: <strong><?php echo mysqli_num_rows($result); ?></strong><br>
-            Filtro estado: <strong><?php echo $filtro_estado; ?></strong><br>
-            <?php if (mysqli_num_rows($result) === 0): ?>
-                <span style="color: red;">⚠️ No se encontraron resultados - Revisa los filtros</span>
-            <?php endif; ?>
         </div>
 
         <!-- Filtros -->

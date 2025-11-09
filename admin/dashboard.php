@@ -14,6 +14,7 @@ $stats = [];
 
 // Total de reservas hoy (BARBERÍA + CANCHA)
 $hoy = date('Y-m-d');
+
 $query_hoy_barberia = "SELECT COUNT(*) as total FROM reservas WHERE fecha = '$hoy' AND estado != 'Cancelada'";
 $result_hoy_barberia = mysqli_query($conexion, $query_hoy_barberia);
 $barberia_hoy = mysqli_fetch_assoc($result_hoy_barberia)['total'];
@@ -59,7 +60,7 @@ $ingresos_cancha = mysqli_fetch_assoc($result_ingresos_cancha)['total'] ?? 0;
 
 $stats['ingresos'] = $ingresos_barberia + $ingresos_cancha;
 
-// 🔥 OBTENER RESERVAS COMBINADAS (BARBERÍA + CANCHA) - ÚLTIMAS 20
+// 🔥 CONSULTA CORREGIDA - Ordenar por ID descendente (más recientes primero)
 $query_reservas_combinadas = "
     (SELECT 
         r.id,
@@ -71,7 +72,8 @@ $query_reservas_combinadas = "
         r.fecha,
         r.hora,
         r.estado,
-        r.fecha_creacion
+        r.fecha_creacion,
+        CONCAT(r.fecha, ' ', r.hora) as orden_datetime
     FROM reservas r
     INNER JOIN clientes c ON r.id_cliente = c.id
     INNER JOIN servicios s ON r.id_servicio = s.id)
@@ -83,20 +85,25 @@ $query_reservas_combinadas = "
         'Cancha' as tipo,
         c.nombre,
         c.telefono,
-        CONCAT('Cancha Sintética (', rc.duracion, 'h)') as servicio,
+        CONCAT('Cancha Sintética (', ROUND(rc.duracion/60, 1), 'h)') as servicio,
         rc.precio,
         rc.fecha,
         rc.hora_inicio as hora,
         rc.estado,
-        rc.fecha_creacion
+        rc.fecha_creacion,
+        CONCAT(rc.fecha, ' ', rc.hora_inicio) as orden_datetime
     FROM reservas_cancha rc
     INNER JOIN clientes c ON rc.id_cliente = c.id)
     
-    ORDER BY fecha DESC, hora DESC
+    ORDER BY orden_datetime DESC
     LIMIT 20
 ";
 
 $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
+
+if (!$result_reservas) {
+    die("❌ Error en consulta: " . mysqli_error($conexion));
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -126,7 +133,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             background: #f5f6fa;
         }
         
-        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -193,13 +199,11 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             text-align: center;
         }
         
-        /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width);
             padding: 2rem;
         }
         
-        /* Top Bar */
         .top-bar {
             background: white;
             padding: 1.5rem 2rem;
@@ -211,33 +215,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             align-items: center;
         }
         
-        .top-bar h1 {
-            margin: 0;
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--primary-black);
-        }
-        
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .user-avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: var(--gold-primary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary-black);
-            font-weight: 700;
-            font-size: 1.2rem;
-        }
-        
-        /* Stats Cards */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -257,13 +234,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             transform: translateY(-5px);
         }
         
-        .stat-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        
         .stat-card-icon {
             width: 50px;
             height: 50px;
@@ -279,46 +249,11 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
         .stat-card-icon.orange { background: #fff3e0; color: #FF9800; }
         .stat-card-icon.purple { background: #f3e5f5; color: #9C27B0; }
         
-        .stat-card h3 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin: 0;
-            color: var(--primary-black);
-        }
-        
-        .stat-card p {
-            margin: 0;
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        /* Reservas Table */
         .reservas-section {
             background: white;
             padding: 1.5rem;
             border-radius: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .section-header h2 {
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-        
-        .table {
-            margin: 0;
-        }
-        
-        .table thead {
-            background: #f8f9fa;
         }
         
         .badge {
@@ -328,27 +263,11 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             font-size: 0.85rem;
         }
         
-        .badge-pendiente {
-            background: #fff3e0;
-            color: #ff9800;
-        }
+        .badge-pendiente { background: #fff3e0; color: #ff9800; }
+        .badge-confirmada { background: #e3f2fd; color: #2196f3; }
+        .badge-completada { background: #e8f5e9; color: #4caf50; }
+        .badge-cancelada { background: #ffebee; color: #f44336; }
         
-        .badge-confirmada {
-            background: #e3f2fd;
-            color: #2196f3;
-        }
-        
-        .badge-completada {
-            background: #e8f5e9;
-            color: #4caf50;
-        }
-        
-        .badge-cancelada {
-            background: #ffebee;
-            color: #f44336;
-        }
-        
-        /* 🔥 Badge para tipo de reserva */
         .badge-tipo-barberia {
             background: #e3f2fd;
             color: #2196f3;
@@ -371,23 +290,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             padding: 0.4rem 0.8rem;
             font-size: 0.85rem;
             border-radius: 5px;
-        }
-        
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-            }
-            
-            .main-content {
-                margin-left: 0;
-            }
-            
-            .top-bar {
-                flex-direction: column;
-                gap: 1rem;
-            }
         }
     </style>
 </head>
@@ -458,7 +360,7 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
         <!-- Top Bar -->
         <div class="top-bar">
             <div>
-                <h1>Dashboard</h1>
+                <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">Dashboard</h1>
                 <small style="color: #666;">Bienvenido de nuevo, <?php echo $_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario']; ?></small>
             </div>
             
@@ -467,7 +369,7 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
                     <strong style="display: block;"><?php echo $_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario']; ?></strong>
                     <small style="color: #666;">Administrador</small>
                 </div>
-                <div class="user-avatar">
+                <div style="width: 45px; height: 45px; border-radius: 50%; background: #d4af37; display: flex; align-items: center; justify-content: center; color: #1a1a1a; font-weight: 700; font-size: 1.2rem; margin-left: 1rem;">
                     <?php echo strtoupper(substr($_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario'], 0, 1)); ?>
                 </div>
             </div>
@@ -476,10 +378,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
         <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-card-header">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3><?php echo $stats['hoy']; ?></h3>
-                        <p>Reservas Hoy</p>
+                        <h3 style="font-size: 2rem; font-weight: 700; margin: 0;"><?php echo $stats['hoy']; ?></h3>
+                        <p style="margin: 0; color: #666;">Reservas Hoy</p>
                     </div>
                     <div class="stat-card-icon blue">
                         <i class="fas fa-calendar-day"></i>
@@ -488,10 +390,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             </div>
             
             <div class="stat-card">
-                <div class="stat-card-header">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3><?php echo $stats['pendientes']; ?></h3>
-                        <p>Pendientes</p>
+                        <h3 style="font-size: 2rem; font-weight: 700; margin: 0;"><?php echo $stats['pendientes']; ?></h3>
+                        <p style="margin: 0; color: #666;">Pendientes</p>
                     </div>
                     <div class="stat-card-icon orange">
                         <i class="fas fa-clock"></i>
@@ -500,10 +402,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             </div>
             
             <div class="stat-card">
-                <div class="stat-card-header">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3><?php echo $stats['clientes']; ?></h3>
-                        <p>Total Clientes</p>
+                        <h3 style="font-size: 2rem; font-weight: 700; margin: 0;"><?php echo $stats['clientes']; ?></h3>
+                        <p style="margin: 0; color: #666;">Total Clientes</p>
                     </div>
                     <div class="stat-card-icon green">
                         <i class="fas fa-users"></i>
@@ -512,10 +414,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
             </div>
             
             <div class="stat-card">
-                <div class="stat-card-header">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3>$<?php echo number_format($stats['ingresos'], 0, ',', '.'); ?></h3>
-                        <p>Ingresos del Mes</p>
+                        <h3 style="font-size: 2rem; font-weight: 700; margin: 0;">$<?php echo number_format($stats['ingresos'], 0, ',', '.'); ?></h3>
+                        <p style="margin: 0; color: #666;">Ingresos del Mes</p>
                     </div>
                     <div class="stat-card-icon purple">
                         <i class="fas fa-dollar-sign"></i>
@@ -526,8 +428,8 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
 
         <!-- Reservas Recientes COMBINADAS -->
         <div class="reservas-section">
-            <div class="section-header">
-                <h2><i class="fas fa-calendar-check"></i> Reservas Recientes (Barbería + Cancha)</h2>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 style="margin: 0;"><i class="fas fa-calendar-check"></i> Reservas Recientes (Barbería + Cancha)</h2>
                 <div>
                     <a href="ver_reservas.php" class="btn btn-outline-primary btn-sm me-2">
                         <i class="fas fa-cut"></i> Ver Barbería
@@ -562,7 +464,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
                                 $fecha_formateada = date('d/m/Y', strtotime($reserva['fecha']));
                                 $hora_formateada = date('g:i A', strtotime($reserva['hora']));
                                 
-                                // Badge de tipo
                                 $tipo_badge = $reserva['tipo'] === 'Barbería' 
                                     ? '<span class="badge-tipo-barberia"><i class="fas fa-cut"></i> Barbería</span>'
                                     : '<span class="badge-tipo-cancha"><i class="fas fa-futbol"></i> Cancha</span>';
@@ -615,7 +516,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
                                 <?php
                             }
                         } else {
-                            echo '<tr><td colspan="10" class="text-center">No hay reservas registradas</td></tr>';
+                            echo '<tr><td colspan="10" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i><br>
+                                    <p class="text-muted">No hay reservas registradas</p>
+                                  </td></tr>';
                         }
                         ?>
                     </tbody>
@@ -629,7 +533,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
-        // Función para cambiar el estado de una reserva
         function cambiarEstado(tipo, idReserva, nuevoEstado) {
             Swal.fire({
                 title: '¿Estás seguro?',
@@ -642,7 +545,6 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Determinar qué archivo usar según el tipo
                     const archivo = tipo === 'Barbería' ? 'procesar_reserva.php' : 'procesar_reserva_cancha.php';
                     
                     fetch(archivo, {
