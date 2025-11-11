@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-// Verificar si está logueado
 if (!isset($_SESSION['admin_logueado']) || $_SESSION['admin_logueado'] !== true) {
     header("Location: login.php");
     exit;
@@ -9,12 +8,13 @@ if (!isset($_SESSION['admin_logueado']) || $_SESSION['admin_logueado'] !== true)
 
 include '../includes/conexion.php';
 
-// Obtener estadísticas
+// Estadísticas
 $stats = [];
 
-// Total de reservas hoy (BARBERÍA + CANCHA)
 $hoy = date('Y-m-d');
 
+// Reservas hoy (BARBERÍA + CANCHA + WEB)
+// ----------------------------------------
 $query_hoy_barberia = "SELECT COUNT(*) as total FROM reservas WHERE fecha = '$hoy' AND estado != 'Cancelada'";
 $result_hoy_barberia = mysqli_query($conexion, $query_hoy_barberia);
 $barberia_hoy = mysqli_fetch_assoc($result_hoy_barberia)['total'];
@@ -23,9 +23,15 @@ $query_hoy_cancha = "SELECT COUNT(*) as total FROM reservas_cancha WHERE fecha =
 $result_hoy_cancha = mysqli_query($conexion, $query_hoy_cancha);
 $cancha_hoy = mysqli_fetch_assoc($result_hoy_cancha)['total'];
 
-$stats['hoy'] = $barberia_hoy + $cancha_hoy;
+// 📌 NUEVO: Contar reservas de citas_web para hoy
+$query_hoy_web = "SELECT COUNT(*) as total FROM citas_web WHERE fecha = '$hoy' AND estado != 'Cancelada'";
+$result_hoy_web = mysqli_query($conexion, $query_hoy_web);
+$web_hoy = mysqli_fetch_assoc($result_hoy_web)['total'];
 
-// Reservas pendientes (BARBERÍA + CANCHA)
+$stats['hoy'] = $barberia_hoy + $cancha_hoy + $web_hoy; // Se suman las 3 fuentes
+
+// Reservas pendientes (BARBERÍA + CANCHA + WEB)
+// ---------------------------------------------
 $query_pendientes_barberia = "SELECT COUNT(*) as total FROM reservas WHERE estado = 'Pendiente'";
 $result_pendientes_barberia = mysqli_query($conexion, $query_pendientes_barberia);
 $pendientes_barberia = mysqli_fetch_assoc($result_pendientes_barberia)['total'];
@@ -34,20 +40,27 @@ $query_pendientes_cancha = "SELECT COUNT(*) as total FROM reservas_cancha WHERE 
 $result_pendientes_cancha = mysqli_query($conexion, $query_pendientes_cancha);
 $pendientes_cancha = mysqli_fetch_assoc($result_pendientes_cancha)['total'];
 
-$stats['pendientes'] = $pendientes_barberia + $pendientes_cancha;
+// 📌 NUEVO: Contar reservas de citas_web pendientes
+$query_pendientes_web = "SELECT COUNT(*) as total FROM citas_web WHERE estado = 'Pendiente'";
+$result_pendientes_web = mysqli_query($conexion, $query_pendientes_web);
+$pendientes_web = mysqli_fetch_assoc($result_pendientes_web)['total'];
 
-// Total de clientes
+$stats['pendientes'] = $pendientes_barberia + $pendientes_cancha + $pendientes_web; // Se suman las 3 fuentes
+
+// Total clientes
+// ------------------------------------------------------
 $query_clientes = "SELECT COUNT(*) as total FROM clientes";
 $result_clientes = mysqli_query($conexion, $query_clientes);
 $stats['clientes'] = mysqli_fetch_assoc($result_clientes)['total'];
 
-// Ingresos del mes (BARBERÍA + CANCHA)
+// Ingresos del mes
+// --------------------------------------------------------------------------------------------------
 $mes_actual = date('Y-m');
 $query_ingresos_barberia = "SELECT SUM(s.precio) as total 
-                   FROM reservas r 
-                   INNER JOIN servicios s ON r.id_servicio = s.id 
-                   WHERE DATE_FORMAT(r.fecha, '%Y-%m') = '$mes_actual' 
-                   AND r.estado = 'Completada'";
+                            FROM reservas r 
+                            INNER JOIN servicios s ON r.id_servicio = s.id 
+                            WHERE DATE_FORMAT(r.fecha, '%Y-%m') = '$mes_actual' 
+                            AND r.estado = 'Completada'";
 $result_ingresos_barberia = mysqli_query($conexion, $query_ingresos_barberia);
 $ingresos_barberia = mysqli_fetch_assoc($result_ingresos_barberia)['total'] ?? 0;
 
@@ -60,7 +73,8 @@ $ingresos_cancha = mysqli_fetch_assoc($result_ingresos_cancha)['total'] ?? 0;
 
 $stats['ingresos'] = $ingresos_barberia + $ingresos_cancha;
 
-// 🔥 CONSULTA CORREGIDA - Ordenar por ID descendente (más recientes primero)
+// 🔥 CONSULTA PRINCIPAL (Reservas Recientes) - Se agrega citas_web con UNION ALL
+// ---------------------------------------------------------------------------
 $query_reservas_combinadas = "
     (SELECT 
         r.id,
@@ -70,10 +84,9 @@ $query_reservas_combinadas = "
         s.nombre_servicio as servicio,
         s.precio,
         r.fecha,
-        r.hora,
+        COALESCE(r.hora, '00:00:00') as hora,
         r.estado,
-        r.fecha_creacion,
-        CONCAT(r.fecha, ' ', r.hora) as orden_datetime
+        r.fecha_creacion
     FROM reservas r
     INNER JOIN clientes c ON r.id_cliente = c.id
     INNER JOIN servicios s ON r.id_servicio = s.id)
@@ -88,14 +101,30 @@ $query_reservas_combinadas = "
         CONCAT('Cancha Sintética (', ROUND(rc.duracion/60, 1), 'h)') as servicio,
         rc.precio,
         rc.fecha,
-        rc.hora_inicio as hora,
+        COALESCE(rc.hora_inicio, '00:00:00') as hora,
         rc.estado,
-        rc.fecha_creacion,
-        CONCAT(rc.fecha, ' ', rc.hora_inicio) as orden_datetime
+        rc.fecha_creacion
     FROM reservas_cancha rc
     INNER JOIN clientes c ON rc.id_cliente = c.id)
     
-    ORDER BY orden_datetime DESC
+    UNION ALL
+    
+    (SELECT 
+        cw.id,
+        'Web' as tipo,
+        c.nombre,
+        c.telefono,
+        s.nombre_servicio as servicio,
+        s.precio,
+        cw.fecha,
+        COALESCE(cw.hora, '00:00:00') as hora,
+        cw.estado,
+        cw.fecha_creacion
+    FROM citas_web cw
+    INNER JOIN clientes c ON cw.id_cliente = c.id
+    INNER JOIN servicios s ON cw.id_servicio = s.id)
+    
+    ORDER BY fecha DESC, hora DESC
     LIMIT 20
 ";
 
@@ -104,7 +133,10 @@ $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
 if (!$result_reservas) {
     die("❌ Error en consulta: " . mysqli_error($conexion));
 }
+
+
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -112,13 +144,8 @@ if (!$result_reservas) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Admin - Barber League</title>
     
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- SweetAlert2 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     
     <style>
@@ -364,12 +391,12 @@ if (!$result_reservas) {
                 <small style="color: #666;">Bienvenido de nuevo, <?php echo $_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario']; ?></small>
             </div>
             
-            <div class="user-info">
-                <div>
+            <div class="user-info" style="display: flex; align-items: center; gap: 1rem;">
+                <div style="text-align: right;">
                     <strong style="display: block;"><?php echo $_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario']; ?></strong>
                     <small style="color: #666;">Administrador</small>
                 </div>
-                <div style="width: 45px; height: 45px; border-radius: 50%; background: #d4af37; display: flex; align-items: center; justify-content: center; color: #1a1a1a; font-weight: 700; font-size: 1.2rem; margin-left: 1rem;">
+                <div style="width: 45px; height: 45px; border-radius: 50%; background: #d4af37; display: flex; align-items: center; justify-content: center; color: #1a1a1a; font-weight: 700; font-size: 1.2rem;">
                     <?php echo strtoupper(substr($_SESSION['admin_nombre'] ?? $_SESSION['admin_usuario'], 0, 1)); ?>
                 </div>
             </div>
@@ -426,7 +453,7 @@ if (!$result_reservas) {
             </div>
         </div>
 
-        <!-- Reservas Recientes COMBINADAS -->
+        <!-- Reservas Recientes -->
         <div class="reservas-section">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2 style="margin: 0;"><i class="fas fa-calendar-check"></i> Reservas Recientes (Barbería + Cancha)</h2>
@@ -528,7 +555,6 @@ if (!$result_reservas) {
         </div>
     </main>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     

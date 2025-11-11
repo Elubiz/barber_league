@@ -69,11 +69,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id_reserva = mysqli_insert_id($conexion);
                 $mensaje_exito = "Reserva #$id_reserva creada exitosamente para $nombre";
             } else {
-                $mensaje_error = 'Error al crear la reserva: ' . mysqli_error($conexion);
-            }
-        }
+      // --- CÓDIGO TEMPORAL DE DEBUGGING (INICIA AQUÍ) ---
+echo "<div style='background: #ffd; border: 1px solid orange; padding: 20px; margin: 20px; border-radius: 8px;'>";
+echo "<h1>⚠️ ¡ERROR DE INSERCIÓN DE CLIENTE! ⚠️</h1>";
+echo "<h2>Error de MySQL:</h2>";
+echo "<p style='color: orange; font-weight: bold;'>" . mysqli_error($conexion) . "</p>";
+echo "<h2>Consulta de Cliente que Falló:</h2>";
+echo "<pre style='background: #eee; padding: 10px; border-radius: 4px;'>" . htmlspecialchars($insertCliente) . "</pre>";
+echo "</div>";
+exit;
+          }
     }
+  }
 }
+// --- CÓDIGO TEMPORAL DE DEBUGGING (TERMINA AQUÍ) ---
 
 // Obtener servicios activos
 $serviciosQuery = "SELECT id, nombre_servicio, precio, duracion FROM servicios WHERE activo = 1 ORDER BY nombre_servicio";
@@ -83,6 +92,7 @@ $serviciosResult = mysqli_query($conexion, $serviciosQuery);
 $clientesQuery = "SELECT id, nombre, telefono FROM clientes ORDER BY fecha_registro DESC LIMIT 50";
 $clientesResult = mysqli_query($conexion, $clientesQuery);
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>

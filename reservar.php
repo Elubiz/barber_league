@@ -28,11 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos (sin espacios)';
     }
     else {
-        // ✅ VERIFICAR DISPONIBILIDAD
-        $checkQuery = "SELECT id FROM reservas 
-                      WHERE fecha = '$fecha' 
-                      AND hora = '$hora' 
-                      AND estado != 'Cancelada'";
+     
+        // VERIFICAR DISPONIBILIDAD EN LA NUEVA TABLA PÚBLICA (citas_web)
+$checkQuery = "SELECT id FROM citas_web 
+              WHERE fecha = '$fecha' 
+              AND hora = '$hora' 
+              AND estado != 'Cancelada'";  
         $checkResult = mysqli_query($conexion, $checkQuery);
         
         if (!$checkResult) {
@@ -74,12 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // ✅ CREAR RESERVA (SOLO SI CLIENTE EXISTE)
             if (isset($id_cliente) && $id_cliente > 0) {
-                $insertReserva = "INSERT INTO reservas 
-                                 (id_cliente, id_servicio, fecha, hora, notas, estado, fecha_creacion) 
-                                 VALUES 
-                                 ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente', NOW())";
-                
-                $debug_info .= "Query reserva: $insertReserva<br>";
+    $insertReserva = "INSERT INTO citas_web 
+                      (id_cliente, id_servicio, fecha, hora, notas, estado, fecha_creacion) 
+                      VALUES 
+                      ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente', NOW())";
+    
+    $debug_info .= "Query reserva: $insertReserva<br>";
                 
                 if (mysqli_query($conexion, $insertReserva)) {
                     $id_reserva = mysqli_insert_id($conexion);
@@ -216,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 id="telefono" 
                                 name="telefono" 
                                 placeholder="3106093237"
-                                maxlength="10"
+                                maxlength="12"
                                 required
                                 value="<?php echo isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : ''; ?>"
                             >

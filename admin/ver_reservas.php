@@ -31,13 +31,48 @@ if ($filtro_busqueda !== '') {
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-$query = "SELECT r.*, c.nombre, c.telefono, c.correo, s.nombre_servicio, s.precio
-          FROM reservas r
-          INNER JOIN clientes c ON r.id_cliente = c.id
-          INNER JOIN servicios s ON r.id_servicio = s.id
-          $where_sql
-          ORDER BY r.fecha DESC, r.hora DESC";
+/// Línea ~34 (Nueva consulta con UNION ALL)
+// La consulta ahora incluye ambas tablas (reservas y reservas_cancha)
+// y normaliza los nombres de las columnas para que el código PHP las reconozca.
 
+// En el archivo admin/ver_reservas.php (Líneas 36-60 aproximadamente)
+
+$query = "
+(SELECT 
+    r.id, r.id_cliente, r.id_servicio, r.fecha, r.hora, r.estado, r.notas,
+    c.nombre, c.telefono, c.correo,
+    s.nombre_servicio, s.precio,
+    'Barbería' AS tipo, r.fecha_creacion, r.hora AS hora_inicio -- Aliases para compatibilidad
+FROM reservas r 
+INNER JOIN clientes c ON r.id_cliente = c.id
+INNER JOIN servicios s ON r.id_servicio = s.id)
+
+UNION ALL
+
+(SELECT 
+    rc.id, rc.id_cliente, NULL AS id_servicio, rc.fecha, rc.hora_inicio AS hora, rc.estado, rc.notas,
+    c.nombre, c.telefono, c.correo,
+    'Cancha' AS nombre_servicio, rc.precio AS precio,
+    'Cancha' AS tipo, rc.fecha_creacion, rc.hora_inicio
+FROM reservas_cancha rc
+INNER JOIN clientes c ON rc.id_cliente = c.id)
+
+UNION ALL
+
+-- 📌 NUEVA SECCIÓN: RESERVAS PÚBLICAS (citas_web)
+(SELECT 
+    cw.id, cw.id_cliente, cw.id_servicio, cw.fecha, cw.hora, cw.estado, cw.notas,
+    c.nombre, c.telefono, c.correo,
+    s.nombre_servicio, s.precio,
+    'Web' AS tipo, cw.fecha_creacion, cw.hora AS hora_inicio
+FROM citas_web cw 
+INNER JOIN clientes c ON cw.id_cliente = c.id
+INNER JOIN servicios s ON cw.id_servicio = s.id)
+
+{$where_sql}
+ORDER BY fecha DESC, hora_inicio DESC
+";
+    
 $result = mysqli_query($conexion, $query);
 
 // Contar reservas por estado
