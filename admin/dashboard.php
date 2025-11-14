@@ -72,7 +72,8 @@ $query_reservas_combinadas = "
         r.fecha,
         COALESCE(r.hora, '00:00:00') as hora,
         r.estado,
-        r.fecha_creacion
+        r.fecha_creacion,
+        r.hora AS hora_inicio
     FROM reservas r
     INNER JOIN clientes c ON r.id_cliente = c.id
     INNER JOIN servicios s ON r.id_servicio = s.id)
@@ -89,7 +90,8 @@ $query_reservas_combinadas = "
         rc.fecha,
         COALESCE(rc.hora_inicio, '00:00:00') as hora,
         rc.estado,
-        rc.fecha_creacion
+        rc.fecha_creacion,
+        rc.hora_inicio
     FROM reservas_cancha rc
     INNER JOIN clientes c ON rc.id_cliente = c.id)
     
@@ -105,12 +107,13 @@ $query_reservas_combinadas = "
         cw.fecha,
         COALESCE(cw.hora, '00:00:00') as hora,
         cw.estado,
-        cw.fecha_creacion
+        cw.fecha_creacion,
+        cw.hora AS hora_inicio
     FROM citas_web cw 
     INNER JOIN clientes c ON cw.id_cliente = c.id
     INNER JOIN servicios s ON cw.id_servicio = s.id)
     
-    ORDER BY fecha DESC, hora DESC
+    ORDER BY fecha DESC, hora_inicio DESC
     LIMIT 20
 ";
 

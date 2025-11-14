@@ -5,7 +5,6 @@ $mensaje_exito = '';
 $mensaje_error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
     $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
     $telefono = preg_replace('/\D/', '', trim($_POST['telefono']));
     $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
