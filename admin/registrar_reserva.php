@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-// Verificar si está logueado
 if (!isset($_SESSION['admin_logueado']) || $_SESSION['admin_logueado'] !== true) {
     header("Location: login.php");
     exit;
@@ -13,7 +12,6 @@ $mensaje_exito = '';
 $mensaje_error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Obtener datos del formulario
     $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
     $telefono = mysqli_real_escape_string($conexion, str_replace(' ', '', trim($_POST['telefono'])));
     $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
@@ -23,22 +21,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $notas = isset($_POST['notas']) ? mysqli_real_escape_string($conexion, trim($_POST['notas'])) : '';
     $estado = mysqli_real_escape_string($conexion, $_POST['estado']);
     
-    // Validación básica
     if (empty($nombre) || empty($telefono) || empty($id_servicio) || empty($fecha) || empty($hora)) {
         $mensaje_error = 'Por favor completa todos los campos obligatorios';
     } elseif (!preg_match('/^[0-9]{10}$/', $telefono)) {
         $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
     } else {
-        // Verificar disponibilidad (opcional para admin, pero recomendado)
         $checkQuery = "SELECT id FROM reservas WHERE fecha = '$fecha' AND hora = '$hora' AND estado != 'Cancelada'";
         $checkResult = mysqli_query($conexion, $checkQuery);
         
         if (mysqli_num_rows($checkResult) > 0) {
-            // Advertencia pero permitir continuar
             $mensaje_advertencia = 'Advertencia: Ya existe una reserva en este horario';
         }
         
-        // Buscar o crear cliente
         $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
         $clienteResult = mysqli_query($conexion, $clienteQuery);
         
@@ -46,11 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cliente = mysqli_fetch_assoc($clienteResult);
             $id_cliente = $cliente['id'];
             
-            // Actualizar datos del cliente
             $updateCliente = "UPDATE clientes SET nombre = '$nombre', correo = '$correo' WHERE id = $id_cliente";
             mysqli_query($conexion, $updateCliente);
         } else {
-            // Cliente nuevo
             $insertCliente = "INSERT INTO clientes (nombre, telefono, correo) VALUES ('$nombre', '$telefono', '$correo')";
             if (mysqli_query($conexion, $insertCliente)) {
                 $id_cliente = mysqli_insert_id($conexion);
@@ -60,7 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Crear reserva
         if ($id_cliente > 0) {
             $insertReserva = "INSERT INTO reservas (id_cliente, id_servicio, fecha, hora, notas, estado) 
                               VALUES ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', '$estado')";
@@ -69,26 +60,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id_reserva = mysqli_insert_id($conexion);
                 $mensaje_exito = "Reserva #$id_reserva creada exitosamente para $nombre";
             } else {
-      // --- CÓDIGO TEMPORAL DE DEBUGGING (INICIA AQUÍ) ---
-echo "<div style='background: #ffd; border: 1px solid orange; padding: 20px; margin: 20px; border-radius: 8px;'>";
-echo "<h1>⚠️ ¡ERROR DE INSERCIÓN DE CLIENTE! ⚠️</h1>";
-echo "<h2>Error de MySQL:</h2>";
-echo "<p style='color: orange; font-weight: bold;'>" . mysqli_error($conexion) . "</p>";
-echo "<h2>Consulta de Cliente que Falló:</h2>";
-echo "<pre style='background: #eee; padding: 10px; border-radius: 4px;'>" . htmlspecialchars($insertCliente) . "</pre>";
-echo "</div>";
-exit;
-          }
+                $mensaje_error = 'Error al crear reserva: ' . mysqli_error($conexion);
+            }
+        }
     }
-  }
 }
-// --- CÓDIGO TEMPORAL DE DEBUGGING (TERMINA AQUÍ) ---
 
-// Obtener servicios activos
 $serviciosQuery = "SELECT id, nombre_servicio, precio, duracion FROM servicios WHERE activo = 1 ORDER BY nombre_servicio";
 $serviciosResult = mysqli_query($conexion, $serviciosQuery);
 
-// Obtener clientes recientes (últimos 50)
 $clientesQuery = "SELECT id, nombre, telefono FROM clientes ORDER BY fecha_registro DESC LIMIT 50";
 $clientesResult = mysqli_query($conexion, $clientesQuery);
 ?>
@@ -100,16 +80,9 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registrar Reserva - Barber League Admin</title>
     
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    
-    <!-- SweetAlert2 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     
     <style>
@@ -247,7 +220,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
 </head>
 <body>
 
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-logo">
             <i class="fas fa-cut"></i>
@@ -256,54 +228,21 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
         </div>
         
         <ul class="sidebar-menu">
-            <li>
-                <a href="dashboard.php">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Dashboard</span>
-                </a>
-            </li>
-            <li>
-                <a href="ver_reservas.php">
-                    <i class="fas fa-calendar-check"></i>
-                    <span>Ver Reservas</span>
-                </a>
-            </li>
-            <li>
-                <a href="registrar_reserva.php" class="active">
-                    <i class="fas fa-plus-circle"></i>
-                    <span>Nueva Reserva</span>
-                </a>
-            </li>
-            <li>
-                <a href="clientes.php">
-                    <i class="fas fa-users"></i>
-                    <span>Clientes</span>
-                </a>
-            </li>
-            <li>
-                <a href="servicio.php">
-                    <i class="fas fa-scissors"></i>
-                    <span>Servicios</span>
-                </a>
-            </li>
-            <li>
-                <a href="../index.php" target="_blank">
-                    <i class="fas fa-globe"></i>
-                    <span>Ver Sitio Web</span>
-                </a>
-            </li>
+            <li><a href="dashboard.php"><i class="fas fa-chart-line"></i><span>Dashboard</span></a></li>
+            <li><a href="ver_reservas.php"><i class="fas fa-calendar-check"></i><span>Ver Reservas</span></a></li>
+            <li><a href="registrar_reserva.php" class="active"><i class="fas fa-plus-circle"></i><span>Nueva Reserva</span></a></li>
+            <li><a href="clientes.php"><i class="fas fa-users"></i><span>Clientes</span></a></li>
+            <li><a href="servicio.php"><i class="fas fa-scissors"></i><span>Servicios</span></a></li>
+            <li><a href="../index.php" target="_blank"><i class="fas fa-globe"></i><span>Ver Sitio Web</span></a></li>
             <li style="margin-top: 2rem;">
                 <a href="logout.php" style="background: rgba(244, 67, 54, 0.2); color: #f44336;">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Cerrar Sesión</span>
+                    <i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span>
                 </a>
             </li>
         </ul>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
         <div class="top-bar">
             <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">
                 <i class="fas fa-plus-circle"></i> Registrar Nueva Reserva
@@ -311,7 +250,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             <small style="color: #666;">Crea una reserva manualmente desde el panel administrativo</small>
         </div>
 
-        <!-- Mensajes -->
         <?php if ($mensaje_exito): ?>
             <div class="alert alert-success alert-dismissible fade show">
                 <i class="fas fa-check-circle"></i> <?php echo $mensaje_exito; ?>
@@ -333,16 +271,13 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             </div>
         <?php endif; ?>
 
-        <!-- Formulario -->
         <div class="form-container">
             <form id="reservaForm" method="POST" action="">
-                <!-- Sección 1: Cliente -->
                 <div class="form-section">
                     <h4 style="margin-bottom: 1.5rem; color: var(--gold-primary);">
                         <i class="fas fa-user"></i> 1. Información del Cliente
                     </h4>
                     
-                    <!-- Cliente Existente (Opcional) -->
                     <div class="mb-3">
                         <label class="form-label">
                             <i class="fas fa-search"></i> Buscar Cliente Existente (Opcional)
@@ -389,7 +324,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
                     </div>
                 </div>
 
-                <!-- Sección 2: Servicio -->
                 <div class="form-section">
                     <h4 style="margin-bottom: 1.5rem; color: var(--gold-primary);">
                         <i class="fas fa-scissors"></i> 2. Seleccionar Servicio
@@ -420,7 +354,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
                     </small>
                 </div>
 
-                <!-- Sección 3: Fecha y Hora -->
                 <div class="form-section">
                     <h4 style="margin-bottom: 1.5rem; color: var(--gold-primary);">
                         <i class="fas fa-calendar"></i> 3. Fecha y Hora
@@ -458,7 +391,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
                     </div>
                 </div>
 
-                <!-- Sección 4: Notas -->
                 <div class="form-section">
                     <h4 style="margin-bottom: 1.5rem; color: var(--gold-primary);">
                         <i class="fas fa-comment"></i> 4. Notas Adicionales (Opcional)
@@ -470,7 +402,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
                     </div>
                 </div>
 
-                <!-- Botones -->
                 <div class="d-flex gap-2 justify-content-between">
                     <a href="ver_reservas.php" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Volver a Reservas
@@ -483,14 +414,12 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
         </div>
     </main>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
-        // Inicializar selector de fecha
         const fechaInput = document.getElementById('fecha');
         const horaSelect = document.getElementById('hora');
         
@@ -506,7 +435,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             }
         });
         
-        // Cargar horas disponibles
         function cargarHorasDisponibles(fecha) {
             horaSelect.innerHTML = '<option value="">Cargando...</option>';
             
@@ -536,22 +464,18 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             return `${h}:00 ${ampm}`;
         }
         
-        // Seleccionar servicio
         let servicioSeleccionado = null;
         function seleccionarServicio(id, element) {
-            // Remover selección anterior
             document.querySelectorAll('.quick-btn').forEach(btn => {
                 btn.classList.remove('selected');
             });
             
-            // Seleccionar nuevo
             element.classList.add('selected');
             document.getElementById('id_servicio').value = id;
             document.getElementById('servicio-error').style.display = 'none';
             servicioSeleccionado = id;
         }
         
-        // Cargar datos de cliente existente
         function cargarDatosCliente() {
             const select = document.getElementById('cliente_existente');
             const option = select.options[select.selectedIndex];
@@ -566,7 +490,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             }
         }
         
-        // Formatear teléfono
         document.getElementById('telefono').addEventListener('input', function(e) {
             let valor = this.value.replace(/\D/g, '');
             if (valor.length > 10) valor = valor.slice(0, 10);
@@ -588,7 +511,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             return tel;
         }
         
-        // Validación antes de enviar
         document.getElementById('reservaForm').addEventListener('submit', function(e) {
             const telefono = document.getElementById('telefono').value.replace(/\s/g, '');
             
@@ -616,7 +538,6 @@ $clientesResult = mysqli_query($conexion, $clientesQuery);
             }
         });
         
-        // Mostrar éxito
         <?php if ($mensaje_exito): ?>
             setTimeout(() => {
                 Swal.fire({

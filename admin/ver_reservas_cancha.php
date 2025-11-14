@@ -8,12 +8,10 @@ if (!isset($_SESSION['admin_logueado']) || $_SESSION['admin_logueado'] !== true)
 
 include '../includes/conexion.php';
 
-// Filtros
 $filtro_estado = isset($_GET['estado']) ? $_GET['estado'] : 'todos';
 $filtro_fecha = isset($_GET['fecha']) ? $_GET['fecha'] : '';
 $filtro_busqueda = isset($_GET['busqueda']) ? mysqli_real_escape_string($conexion, $_GET['busqueda']) : '';
 
-// Construir query con filtros
 $where_clauses = [];
 
 if ($filtro_estado !== 'todos') {
@@ -30,7 +28,6 @@ if ($filtro_busqueda !== '') {
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// ✅ QUERY CORREGIDO - Trae TODAS las columnas necesarias
 $query = "SELECT rc.id, rc.fecha, rc.hora_inicio, rc.hora_fin, rc.duracion, 
           rc.estado, rc.precio, rc.num_personas, rc.notas, rc.fecha_creacion,
           c.nombre, c.telefono, c.correo
@@ -45,7 +42,6 @@ if (!$result) {
     die("Error en la consulta: " . mysqli_error($conexion));
 }
 
-// Contar reservas por estado
 $stats_query = "SELECT estado, COUNT(*) as total FROM reservas_cancha GROUP BY estado";
 $stats_result = mysqli_query($conexion, $stats_query);
 $stats = [];
@@ -218,7 +214,6 @@ $total_reservas = array_sum($stats);
 </head>
 <body>
 
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-logo">
             <i class="fas fa-cut"></i>
@@ -242,14 +237,12 @@ $total_reservas = array_sum($stats);
         </ul>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
         <div class="top-bar">
             <h1><i class="fas fa-futbol"></i> Reservas de Cancha Sintética</h1>
             <small style="color: #666;">Gestiona las reservas de la cancha</small>
         </div>
 
-        <!-- Filtros -->
         <div class="filtros-section">
             <h5 style="margin-bottom: 1rem;"><i class="fas fa-filter"></i> Filtrar Reservas</h5>
             
@@ -308,7 +301,6 @@ $total_reservas = array_sum($stats);
             </div>
         </div>
 
-        <!-- Tabla de Reservas -->
         <div class="reservas-section">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 style="margin: 0;">

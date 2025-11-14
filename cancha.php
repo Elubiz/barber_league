@@ -1,16 +1,11 @@
 <?php
-// ✅ INCLUIR CONEXIÓN AL INICIO
 include 'includes/conexion.php';
 
 $mensaje_exito = '';
 $mensaje_error = '';
-$debug_info = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    $debug_info = '<pre>POST: ' . print_r($_POST, true) . '</pre>';
-    
-    // Obtener datos
     $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
     $telefono = preg_replace('/\D/', '', trim($_POST['telefono']));
     $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
@@ -21,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $num_personas = intval($_POST['num_personas']);
     $notas = isset($_POST['notas']) ? mysqli_real_escape_string($conexion, trim($_POST['notas'])) : '';
     
-    // Validación
     if (empty($nombre) || empty($telefono) || empty($fecha) || empty($hora_inicio) || $duracion_horas < 1) {
         $mensaje_error = 'Por favor completa todos los campos obligatorios';
     } 
@@ -29,7 +23,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos';
     } 
     else {
-        // ✅ CALCULAR HORA_FIN
         try {
             $horaObj = new DateTime($hora_inicio);
             $horaFinObj = clone $horaObj;
@@ -41,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if ($hora_fin) {
-            // ✅ VERIFICAR DISPONIBILIDAD
             $checkQuery = "SELECT id FROM reservas_cancha 
                           WHERE fecha = '$fecha' 
                           AND estado != 'Cancelada'
@@ -60,14 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mensaje_error = 'Este horario ya está reservado. Selecciona otro.';
             } 
             else {
-                // ✅ CALCULAR PRECIO
                 $precio_hora = 50000;
                 $precio_total = $precio_hora * $duracion_horas;
                 if ($num_personas >= 5) {
                     $precio_total *= 0.90;
                 }
                 
-                // ✅ BUSCAR/CREAR CLIENTE
                 $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
                 $clienteResult = mysqli_query($conexion, $clienteQuery);
                 
@@ -88,14 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
-                // ✅ CREAR RESERVA CANCHA
                 if (isset($id_cliente) && $id_cliente > 0) {
                     $insertReserva = "INSERT INTO reservas_cancha 
                                      (id_cliente, fecha, hora_inicio, hora_fin, duracion, precio, num_personas, notas, estado, fecha_creacion) 
                                      VALUES 
                                      ($id_cliente, '$fecha', '$hora_inicio', '$hora_fin', $duracion_minutos, $precio_total, $num_personas, '$notas', 'Pendiente', NOW())";
-                    
-                    $debug_info .= "Query: $insertReserva<br>";
                     
                     if (mysqli_query($conexion, $insertReserva)) {
                         $id_reserva = mysqli_insert_id($conexion);
@@ -122,10 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
-    
-    <style>
-        .debug-box { background: #fff3cd; border: 2px solid #ffc107; padding: 1rem; margin-bottom: 1rem; }
-    </style>
 </head>
 <body>
 
@@ -136,10 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="section-title">
                 <h2>Reserva Cancha Sintética</h2>
             </div>
-            
-            <?php if (!empty($debug_info) && $_SERVER['REQUEST_METHOD'] === 'POST'): ?>
-                <div class="debug-box"><?php echo $debug_info; ?></div>
-            <?php endif; ?>
             
             <?php if ($mensaje_exito): ?>
                 <div class="alert alert-success">

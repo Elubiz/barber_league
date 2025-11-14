@@ -1,26 +1,19 @@
 <?php
-// ✅ SIEMPRE incluir conexión AL INICIO
 include 'includes/conexion.php';
 
 $mensaje_exito = '';
 $mensaje_error = '';
-$debug_info = ''; // Para debugging
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // ✅ DEBUGGING: Mostrar datos recibidos (QUITAR EN PRODUCCIÓN)
-    $debug_info = '<pre>Datos POST: ' . print_r($_POST, true) . '</pre>';
-    
-    // Obtener y limpiar datos
     $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
-    $telefono = preg_replace('/\D/', '', trim($_POST['telefono'])); // Solo números
+    $telefono = preg_replace('/\D/', '', trim($_POST['telefono']));
     $correo = isset($_POST['correo']) ? mysqli_real_escape_string($conexion, trim($_POST['correo'])) : '';
     $id_servicio = intval($_POST['id_servicio']);
     $fecha = mysqli_real_escape_string($conexion, $_POST['fecha']);
     $hora = mysqli_real_escape_string($conexion, $_POST['hora']);
     $notas = isset($_POST['notas']) ? mysqli_real_escape_string($conexion, trim($_POST['notas'])) : '';
     
-    // ✅ VALIDACIÓN MEJORADA
     if (empty($nombre) || empty($telefono) || empty($id_servicio) || empty($fecha) || empty($hora)) {
         $mensaje_error = 'Por favor completa todos los campos obligatorios';
     } 
@@ -28,12 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mensaje_error = 'El teléfono debe tener exactamente 10 dígitos (sin espacios)';
     }
     else {
-     
-        // VERIFICAR DISPONIBILIDAD EN LA NUEVA TABLA PÚBLICA (citas_web)
-$checkQuery = "SELECT id FROM citas_web 
-              WHERE fecha = '$fecha' 
-              AND hora = '$hora' 
-              AND estado != 'Cancelada'";  
+        $checkQuery = "SELECT id FROM citas_web 
+                      WHERE fecha = '$fecha' 
+                      AND hora = '$hora' 
+                      AND estado != 'Cancelada'";
         $checkResult = mysqli_query($conexion, $checkQuery);
         
         if (!$checkResult) {
@@ -43,12 +34,10 @@ $checkQuery = "SELECT id FROM citas_web
             $mensaje_error = 'Este horario ya está reservado. Por favor, selecciona otro.';
         } 
         else {
-            // ✅ BUSCAR O CREAR CLIENTE
             $clienteQuery = "SELECT id FROM clientes WHERE telefono = '$telefono' LIMIT 1";
             $clienteResult = mysqli_query($conexion, $clienteQuery);
             
             if (mysqli_num_rows($clienteResult) > 0) {
-                // Cliente existe - actualizar datos
                 $cliente = mysqli_fetch_assoc($clienteResult);
                 $id_cliente = $cliente['id'];
                 
@@ -56,41 +45,32 @@ $checkQuery = "SELECT id FROM citas_web
                                  SET nombre = '$nombre', correo = '$correo' 
                                  WHERE id = $id_cliente";
                 mysqli_query($conexion, $updateCliente);
-                
-                $debug_info .= "Cliente existente actualizado: ID $id_cliente<br>";
             } 
             else {
-                // Cliente nuevo - insertar
                 $insertCliente = "INSERT INTO clientes (nombre, telefono, correo, fecha_registro) 
                                  VALUES ('$nombre', '$telefono', '$correo', NOW())";
                 
                 if (mysqli_query($conexion, $insertCliente)) {
                     $id_cliente = mysqli_insert_id($conexion);
-                    $debug_info .= "Cliente nuevo creado: ID $id_cliente<br>";
                 } else {
                     $mensaje_error = 'Error al registrar cliente: ' . mysqli_error($conexion);
                     $id_cliente = 0;
                 }
             }
             
-            // ✅ CREAR RESERVA (SOLO SI CLIENTE EXISTE)
             if (isset($id_cliente) && $id_cliente > 0) {
-    $insertReserva = "INSERT INTO citas_web 
-                      (id_cliente, id_servicio, fecha, hora, notas, estado, fecha_creacion) 
-                      VALUES 
-                      ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente', NOW())";
-    
-    $debug_info .= "Query reserva: $insertReserva<br>";
+                $insertReserva = "INSERT INTO citas_web 
+                                  (id_cliente, id_servicio, fecha, hora, notas, estado, fecha_creacion) 
+                                  VALUES 
+                                  ($id_cliente, $id_servicio, '$fecha', '$hora', '$notas', 'Pendiente', NOW())";
                 
                 if (mysqli_query($conexion, $insertReserva)) {
                     $id_reserva = mysqli_insert_id($conexion);
-                    $mensaje_exito = '¡Reserva #' . $id_reserva . ' realizada exitosamente! Te contactaremos al ' . $telefono;
+                    $mensaje_exito = 'Reserva #' . $id_reserva . ' realizada exitosamente! Te contactaremos al ' . $telefono;
                     
-                    // ✅ Limpiar variables POST para resetear formulario
                     $_POST = array();
                 } else {
                     $mensaje_error = 'Error al crear reserva: ' . mysqli_error($conexion);
-                    $debug_info .= "Error SQL: " . mysqli_error($conexion) . "<br>";
                 }
             }
         }
@@ -143,16 +123,6 @@ $checkQuery = "SELECT id FROM citas_web
         .text-muted {
             color: rgba(255, 255, 255, 0.75) !important;
         }
-        
-        /* ✅ DEBUG BOX */
-        .debug-box {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-        }
     </style>
 </head>
 <body>
@@ -166,15 +136,6 @@ $checkQuery = "SELECT id FROM citas_web
                 <p>Completa el formulario y asegura tu lugar</p>
             </div>
             
-            <!-- ✅ DEBUG INFO (QUITAR EN PRODUCCIÓN) -->
-            <?php if (!empty($debug_info) && $_SERVER['REQUEST_METHOD'] === 'POST'): ?>
-                <div class="debug-box">
-                    <strong>🔧 Información de Debug:</strong>
-                    <?php echo $debug_info; ?>
-                </div>
-            <?php endif; ?>
-            
-            <!-- Mensajes -->
             <?php if ($mensaje_exito): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i> <?php echo $mensaje_exito; ?>
@@ -316,7 +277,6 @@ $checkQuery = "SELECT id FROM citas_web
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     
     <script>
-        // Selector de fecha
         flatpickr('#fecha', {
             locale: 'es',
             minDate: 'today',
@@ -327,7 +287,6 @@ $checkQuery = "SELECT id FROM citas_web
             }
         });
         
-        // Cargar horas
         function cargarHoras() {
             const horaSelect = document.getElementById('hora');
             horaSelect.innerHTML = '<option value="">-- Selecciona una hora --</option>';
@@ -342,7 +301,6 @@ $checkQuery = "SELECT id FROM citas_web
             }
         }
         
-        // Validar teléfono
         document.getElementById('telefono').addEventListener('input', function(e) {
             this.value = this.value.replace(/\D/g, '').slice(0, 10);
         });

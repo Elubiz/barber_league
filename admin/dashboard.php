@@ -8,13 +8,9 @@ if (!isset($_SESSION['admin_logueado']) || $_SESSION['admin_logueado'] !== true)
 
 include '../includes/conexion.php';
 
-// Estadísticas
 $stats = [];
-
 $hoy = date('Y-m-d');
 
-// Reservas hoy (BARBERÍA + CANCHA + WEB)
-// ----------------------------------------
 $query_hoy_barberia = "SELECT COUNT(*) as total FROM reservas WHERE fecha = '$hoy' AND estado != 'Cancelada'";
 $result_hoy_barberia = mysqli_query($conexion, $query_hoy_barberia);
 $barberia_hoy = mysqli_fetch_assoc($result_hoy_barberia)['total'];
@@ -23,15 +19,12 @@ $query_hoy_cancha = "SELECT COUNT(*) as total FROM reservas_cancha WHERE fecha =
 $result_hoy_cancha = mysqli_query($conexion, $query_hoy_cancha);
 $cancha_hoy = mysqli_fetch_assoc($result_hoy_cancha)['total'];
 
-// 📌 NUEVO: Contar reservas de citas_web para hoy
 $query_hoy_web = "SELECT COUNT(*) as total FROM citas_web WHERE fecha = '$hoy' AND estado != 'Cancelada'";
 $result_hoy_web = mysqli_query($conexion, $query_hoy_web);
 $web_hoy = mysqli_fetch_assoc($result_hoy_web)['total'];
 
-$stats['hoy'] = $barberia_hoy + $cancha_hoy + $web_hoy; // Se suman las 3 fuentes
+$stats['hoy'] = $barberia_hoy + $cancha_hoy + $web_hoy;
 
-// Reservas pendientes (BARBERÍA + CANCHA + WEB)
-// ---------------------------------------------
 $query_pendientes_barberia = "SELECT COUNT(*) as total FROM reservas WHERE estado = 'Pendiente'";
 $result_pendientes_barberia = mysqli_query($conexion, $query_pendientes_barberia);
 $pendientes_barberia = mysqli_fetch_assoc($result_pendientes_barberia)['total'];
@@ -40,21 +33,16 @@ $query_pendientes_cancha = "SELECT COUNT(*) as total FROM reservas_cancha WHERE 
 $result_pendientes_cancha = mysqli_query($conexion, $query_pendientes_cancha);
 $pendientes_cancha = mysqli_fetch_assoc($result_pendientes_cancha)['total'];
 
-// 📌 NUEVO: Contar reservas de citas_web pendientes
 $query_pendientes_web = "SELECT COUNT(*) as total FROM citas_web WHERE estado = 'Pendiente'";
 $result_pendientes_web = mysqli_query($conexion, $query_pendientes_web);
 $pendientes_web = mysqli_fetch_assoc($result_pendientes_web)['total'];
 
-$stats['pendientes'] = $pendientes_barberia + $pendientes_cancha + $pendientes_web; // Se suman las 3 fuentes
+$stats['pendientes'] = $pendientes_barberia + $pendientes_cancha + $pendientes_web;
 
-// Total clientes
-// ------------------------------------------------------
 $query_clientes = "SELECT COUNT(*) as total FROM clientes";
 $result_clientes = mysqli_query($conexion, $query_clientes);
 $stats['clientes'] = mysqli_fetch_assoc($result_clientes)['total'];
 
-// Ingresos del mes
-// --------------------------------------------------------------------------------------------------
 $mes_actual = date('Y-m');
 $query_ingresos_barberia = "SELECT SUM(s.precio) as total 
                             FROM reservas r 
@@ -73,8 +61,6 @@ $ingresos_cancha = mysqli_fetch_assoc($result_ingresos_cancha)['total'] ?? 0;
 
 $stats['ingresos'] = $ingresos_barberia + $ingresos_cancha;
 
-// 🔥 CONSULTA PRINCIPAL (Reservas Recientes) - Se agrega citas_web con UNION ALL
-// ---------------------------------------------------------------------------
 $query_reservas_combinadas = "
     (SELECT 
         r.id,
@@ -120,7 +106,7 @@ $query_reservas_combinadas = "
         COALESCE(cw.hora, '00:00:00') as hora,
         cw.estado,
         cw.fecha_creacion
-    FROM citas_web cw
+    FROM citas_web cw 
     INNER JOIN clientes c ON cw.id_cliente = c.id
     INNER JOIN servicios s ON cw.id_servicio = s.id)
     
@@ -131,10 +117,8 @@ $query_reservas_combinadas = "
 $result_reservas = mysqli_query($conexion, $query_reservas_combinadas);
 
 if (!$result_reservas) {
-    die("❌ Error en consulta: " . mysqli_error($conexion));
+    die("Error en consulta: " . mysqli_error($conexion));
 }
-
-
 ?>
 
 <!DOCTYPE html>
@@ -322,7 +306,6 @@ if (!$result_reservas) {
 </head>
 <body>
 
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-logo">
             <i class="fas fa-cut"></i>
@@ -331,60 +314,22 @@ if (!$result_reservas) {
         </div>
         
         <ul class="sidebar-menu">
-            <li>
-                <a href="dashboard.php" class="active">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Dashboard</span>
-                </a>
-            </li>
-            <li>
-                <a href="ver_reservas.php">
-                    <i class="fas fa-calendar-check"></i>
-                    <span>Reservas Barbería</span>
-                </a>
-            </li>
-            <li>
-                <a href="ver_reservas_cancha.php">
-                    <i class="fas fa-futbol"></i>
-                    <span>Reservas Cancha</span>
-                </a>
-            </li>
-            <li>
-                <a href="registrar_reserva.php">
-                    <i class="fas fa-plus-circle"></i>
-                    <span>Nueva Reserva</span>
-                </a>
-            </li>
-            <li>
-                <a href="clientes.php">
-                    <i class="fas fa-users"></i>
-                    <span>Clientes</span>
-                </a>
-            </li>
-            <li>
-                <a href="servicio.php">
-                    <i class="fas fa-scissors"></i>
-                    <span>Servicios</span>
-                </a>
-            </li>
-            <li>
-                <a href="../index.php" target="_blank">
-                    <i class="fas fa-globe"></i>
-                    <span>Ver Sitio Web</span>
-                </a>
-            </li>
+            <li><a href="dashboard.php" class="active"><i class="fas fa-chart-line"></i><span>Dashboard</span></a></li>
+            <li><a href="ver_reservas.php"><i class="fas fa-calendar-check"></i><span>Reservas Barbería</span></a></li>
+            <li><a href="ver_reservas_cancha.php"><i class="fas fa-futbol"></i><span>Reservas Cancha</span></a></li>
+            <li><a href="registrar_reserva.php"><i class="fas fa-plus-circle"></i><span>Nueva Reserva</span></a></li>
+            <li><a href="clientes.php"><i class="fas fa-users"></i><span>Clientes</span></a></li>
+            <li><a href="servicio.php"><i class="fas fa-scissors"></i><span>Servicios</span></a></li>
+            <li><a href="../index.php" target="_blank"><i class="fas fa-globe"></i><span>Ver Sitio Web</span></a></li>
             <li style="margin-top: 2rem;">
                 <a href="logout.php" style="background: rgba(244, 67, 54, 0.2); color: #f44336;">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Cerrar Sesión</span>
+                    <i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span>
                 </a>
             </li>
         </ul>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Top Bar -->
         <div class="top-bar">
             <div>
                 <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">Dashboard</h1>
@@ -402,7 +347,6 @@ if (!$result_reservas) {
             </div>
         </div>
 
-        <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="d-flex justify-content-between align-items-center">
@@ -453,10 +397,9 @@ if (!$result_reservas) {
             </div>
         </div>
 
-        <!-- Reservas Recientes -->
         <div class="reservas-section">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 style="margin: 0;"><i class="fas fa-calendar-check"></i> Reservas Recientes (Barbería + Cancha)</h2>
+                <h2 style="margin: 0;"><i class="fas fa-calendar-check"></i> Reservas Recientes</h2>
                 <div>
                     <a href="ver_reservas.php" class="btn btn-outline-primary btn-sm me-2">
                         <i class="fas fa-cut"></i> Ver Barbería
